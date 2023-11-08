@@ -1,0 +1,15 @@
+[package]
+name = "drag"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+raw-window-handle = "0.5"
+
+[target."cfg(target_os = \"macos\")".dependencies]
+cocoa = "0.25"
+objc = "0.2"
+
+[dev-dependencies]
+tao = "0.23"
+wry = "0.34"
