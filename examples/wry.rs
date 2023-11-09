@@ -7,9 +7,17 @@ use tao::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
-    window::{Window, WindowBuilder},
+    window::WindowBuilder,
 };
-use wry::webview::WebViewBuilder;
+use wry::WebViewBuilder;
+
+#[cfg(not(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "android"
+)))]
+use tao::platform::unix::WindowExtUnix;
 
 enum UserEvent {
     StartDrag,
@@ -39,6 +47,7 @@ fn main() -> wry::Result<()> {
         display: flex;
         align-items: center;
         justify-content: center;
+        -webkit-user-select: none;
       }
     </style>
   </head>
@@ -58,7 +67,7 @@ fn main() -> wry::Result<()> {
   "#;
 
     let proxy = event_loop.create_proxy();
-    let handler = move |_window: &Window, req: String| match req.as_str() {
+    let handler = move |req: String| match req.as_str() {
         "startDrag" => {
             let _ = proxy.send_event(UserEvent::StartDrag);
         }
@@ -71,7 +80,7 @@ fn main() -> wry::Result<()> {
         target_os = "ios",
         target_os = "android"
     ))]
-    let builder = WebViewBuilder::new(window).unwrap();
+    let builder = WebViewBuilder::new(&window);
 
     #[cfg(not(any(
         target_os = "windows",
@@ -80,12 +89,11 @@ fn main() -> wry::Result<()> {
         target_os = "android"
     )))]
     let builder = {
-        use tao::platform::unix::WindowExtUnix;
         let vbox = window.default_vbox().unwrap();
         WebViewBuilder::new_gtk(vbox)
     };
 
-    let webview = builder
+    let _webview = builder
         .with_html(HTML)?
         .with_ipc_handler(handler)
         .with_accept_first_mouse(true)
@@ -103,13 +111,29 @@ fn main() -> wry::Result<()> {
 
             Event::UserEvent(e) => match e {
                 UserEvent::StartDrag => {
+                    #[cfg(any(
+                        target_os = "windows",
+                        target_os = "macos",
+                        target_os = "ios",
+                        target_os = "android"
+                    ))]
+                    let window = &window;
+
+                    #[cfg(not(any(
+                        target_os = "windows",
+                        target_os = "macos",
+                        target_os = "ios",
+                        target_os = "android"
+                    )))]
+                    let window = window.gtk_window();
+
                     start_drag(
-                        webview.window(),
+                        window,
                         DragItem::Files(vec![std::path::PathBuf::from(
                             std::fs::canonicalize("examples/icon.png").unwrap(),
                         )]),
                         Image::Raw(include_bytes!("../examples/icon.png").to_vec()),
-                        // Image::File("../.github/splash.png"),
+                        // Image::File("examples/icon.png".into()),
                     );
                 }
             },
