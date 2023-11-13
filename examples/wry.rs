@@ -89,6 +89,8 @@ fn main() -> wry::Result<()> {
         target_os = "android"
     )))]
     let builder = {
+        use wry::WebViewBuilderExtUnix;
+
         let vbox = window.default_vbox().unwrap();
         WebViewBuilder::new_gtk(vbox)
     };
