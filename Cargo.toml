@@ -10,6 +10,10 @@ raw-window-handle = "0.5"
 cocoa = "0.25"
 objc = "0.2"
 
+[target."cfg(any(target_os = \"linux\", target_os = \"dragonfly\", target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\"))".dependencies]
+gtk = "0.18"
+gdkx11 = "0.18"
+
 [dev-dependencies]
 tao = "0.23"
-wry = "0.34"
+wry = { git = "https://github.com/tauri-apps/wry.git", branch = "dev" }
