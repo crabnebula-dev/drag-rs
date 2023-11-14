@@ -14,6 +14,20 @@ objc = "0.2"
 gtk = "0.18"
 gdkx11 = "0.18"
 
+[target."cfg(target_os = \"windows\")".dependencies.windows]
+version = "0.51"
+features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Ole",
+    "Win32_System_Memory",
+    "Win32_System_SystemServices",
+    "Win32_UI_Shell",
+]
+
 [dev-dependencies]
 tao = "0.23"
 wry = { git = "https://github.com/tauri-apps/wry.git", branch = "dev" }
