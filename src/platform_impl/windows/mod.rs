@@ -1,4 +1,4 @@
-use raw_window_handle::HasRawWindowHandle;
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
 use crate::{DragItem, Image};
 
@@ -151,52 +151,54 @@ impl IDropSource_Impl for DropSource {
 }
 
 pub fn start_drag<W: HasRawWindowHandle>(handle: &W, item: DragItem, image: Image) {
-    match item {
-        DragItem::Files(files) => {
-            init_ole();
-            let mut buffer = Vec::new();
-            for path in files {
-                let path = OsStr::new(&path);
-                for code in path.encode_wide() {
-                    buffer.push(code);
+    if let RawWindowHandle::Win32(w) = handle.raw_window_handle() {
+        match item {
+            DragItem::Files(files) => {
+                init_ole();
+                let mut buffer = Vec::new();
+                for path in files {
+                    let path = OsStr::new(&path);
+                    for code in path.encode_wide() {
+                        buffer.push(code);
+                    }
+                    buffer.push(0);
                 }
+
+                // We finish with a double null.
                 buffer.push(0);
+
+                let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
+                let handle = unsafe { GlobalAlloc(GMEM_FIXED, size).unwrap() };
+                let ptr = unsafe { GlobalLock(handle) };
+
+                let header = ptr as *mut DROPFILES;
+                unsafe {
+                    (*header).pFiles = std::mem::size_of::<DROPFILES>() as u32;
+                    (*header).fWide = BOOL(1);
+                }
+
+                unsafe {
+                    std::ptr::copy(
+                        buffer.as_ptr() as *const c_void,
+                        ptr.add(std::mem::size_of::<DROPFILES>()),
+                        buffer.len() * 2,
+                    )
+                };
+                unsafe { GlobalUnlock(handle) };
+
+                let data_object: IDataObject = DataObject::new(handle).into();
+                let drop_source: IDropSource = DropSource::new().into();
+
+                let mut effect = DROPEFFECT(0);
+                let _ = unsafe {
+                    dbg!(DoDragDrop(
+                        &data_object,
+                        &drop_source,
+                        DROPEFFECT_COPY,
+                        &mut effect
+                    ))
+                };
             }
-
-            // We finish with a double null.
-            buffer.push(0);
-
-            let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
-            let handle = unsafe { GlobalAlloc(GMEM_FIXED, size).unwrap() };
-            let ptr = unsafe { GlobalLock(handle) };
-
-            let header = ptr as *mut DROPFILES;
-            unsafe {
-                (*header).pFiles = std::mem::size_of::<DROPFILES>() as u32;
-                (*header).fWide = BOOL(1);
-            }
-
-            unsafe {
-                std::ptr::copy(
-                    buffer.as_ptr() as *const c_void,
-                    ptr.add(std::mem::size_of::<DROPFILES>()),
-                    buffer.len() * 2,
-                )
-            };
-            unsafe { GlobalUnlock(handle) };
-
-            let data_object : IDataObject = DataObject::new(handle).into();
-            let drop_source : IDropSource = DropSource::new().into();
-
-            let mut effect = DROPEFFECT(0);
-            let _ = unsafe {
-                dbg!(DoDragDrop(
-                    &data_object,
-                    &drop_source,
-                    DROPEFFECT_COPY,
-                    &mut effect
-                ))
-            };
         }
     }
 }
