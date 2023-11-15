@@ -134,7 +134,7 @@ fn main() -> wry::Result<()> {
                         DragItem::Files(vec![std::path::PathBuf::from(
                             std::fs::canonicalize("examples/icon.png").unwrap(),
                         )]),
-                        Image::Raw(include_bytes!("../examples/icon.png").to_vec()),
+                        Image::Raw(include_bytes!("../icon.png").to_vec()),
                         // Image::File("examples/icon.png".into()),
                     )
                     .unwrap();
