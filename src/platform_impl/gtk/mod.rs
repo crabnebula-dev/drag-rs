@@ -5,7 +5,11 @@ use gtk::{
     prelude::{DragContextExtManual, PixbufLoaderExt, WidgetExt, WidgetExtManual},
 };
 
-pub fn start_drag(window: &gtk::ApplicationWindow, item: DragItem, image: Image) {
+pub fn start_drag(
+    window: &gtk::ApplicationWindow,
+    item: DragItem,
+    image: Image,
+) -> crate::Result<()> {
     window.drag_source_set(gdk::ModifierType::BUTTON1_MASK, &[], gdk::DragAction::COPY);
 
     match item {
@@ -46,7 +50,13 @@ pub fn start_drag(window: &gtk::ApplicationWindow, item: DragItem, image: Image)
             if let Some(icon) = icon_pixbuf {
                 drag_context.drag_set_icon_pixbuf(&icon, 0, 0);
             }
+
+            Ok(())
+        } else {
+            Err(crate::Error::FailedToStartDrag)
         }
+    } else {
+        Err(crate::Error::EmptyTargetList)
     }
 }
 

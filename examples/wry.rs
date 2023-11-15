@@ -136,7 +136,8 @@ fn main() -> wry::Result<()> {
                         )]),
                         Image::Raw(include_bytes!("../examples/icon.png").to_vec()),
                         // Image::File("examples/icon.png".into()),
-                    );
+                    )
+                    .unwrap();
                 }
             },
             _ => (),
