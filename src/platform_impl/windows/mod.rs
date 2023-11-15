@@ -25,7 +25,7 @@ static OLE_UNINITIALIZE: Once = Once::new();
 fn init_ole() {
     let _ = OLE_UNINITIALIZE.call_once(|| {
         use windows::Win32::System::Ole::OleInitialize;
-        let _ = unsafe { dbg!(OleInitialize(Some(std::ptr::null_mut()))) }.unwrap();
+        let _ = unsafe { (OleInitialize(Some(std::ptr::null_mut()))) }.unwrap();
 
         // I guess we never deinitialize for now?
         // OleUninitialize
@@ -33,6 +33,7 @@ fn init_ole() {
 }
 
 #[implement(IDataObject)]
+#[derive(Clone)]
 struct DataObject(HGLOBAL);
 
 #[implement(IDropSource)]
@@ -44,6 +45,19 @@ impl DropSource {
     }
 }
 
+#[implement(IDropSource)]
+struct DummyDropSource;
+
+impl IDropSource_Impl for DummyDropSource {
+    fn QueryContinueDrag(&self, fescapepressed: BOOL, grfkeystate: MODIFIERKEYS_FLAGS) -> HRESULT {
+        return S_OK;
+    }
+
+    fn GiveFeedback(&self, _dweffect: DROPEFFECT) -> HRESULT {
+        return DRAGDROP_S_USEDEFAULTCURSORS;
+    }
+}
+
 impl DataObject {
     fn new(handle: HGLOBAL) -> Self {
         return Self(handle);
@@ -51,7 +65,6 @@ impl DataObject {
 
     fn is_supported_format(pformatetc: *const FORMATETC) -> bool {
         if let Some(format_etc) = unsafe { pformatetc.as_ref() } {
-            dbg!(format_etc);
             if format_etc.tymed as i32 != TYMED_HGLOBAL.0 {
                 return false;
             }
@@ -75,7 +88,7 @@ impl IDataObject_Impl for DataObject {
             return Ok(STGMEDIUM {
                 tymed: TYMED_HGLOBAL.0 as u32,
                 u: STGMEDIUM_0 { hGlobal: self.0 },
-                pUnkForRelease: std::mem::ManuallyDrop::new(None),
+                pUnkForRelease: std::mem::ManuallyDrop::new(Some(DummyDropSource.into())),
             });
         } else {
             return Err(Error::new(DV_E_FORMATETC, HSTRING::new()));
@@ -134,6 +147,12 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
+impl Drop for DataObject {
+    fn drop(&mut self) {
+        unsafe { GlobalFree(self.0) };
+    }
+}
+
 impl IDropSource_Impl for DropSource {
     fn QueryContinueDrag(&self, fescapepressed: BOOL, grfkeystate: MODIFIERKEYS_FLAGS) -> HRESULT {
         if fescapepressed.as_bool() {
@@ -168,37 +187,33 @@ pub fn start_drag<W: HasRawWindowHandle>(handle: &W, item: DragItem, image: Imag
                 buffer.push(0);
 
                 let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
-                let handle = unsafe { GlobalAlloc(GMEM_FIXED, size).unwrap() };
-                let ptr = unsafe { GlobalLock(handle) };
-
-                let header = ptr as *mut DROPFILES;
-                unsafe {
-                    (*header).pFiles = std::mem::size_of::<DROPFILES>() as u32;
-                    (*header).fWide = BOOL(1);
-                }
-
-                unsafe {
-                    std::ptr::copy(
-                        buffer.as_ptr() as *const c_void,
-                        ptr.add(std::mem::size_of::<DROPFILES>()),
-                        buffer.len() * 2,
-                    )
-                };
-                unsafe { GlobalUnlock(handle) };
+                let handle = get_hglobal(size, buffer);
 
                 let data_object: IDataObject = DataObject::new(handle).into();
                 let drop_source: IDropSource = DropSource::new().into();
 
                 let mut effect = DROPEFFECT(0);
-                let _ = unsafe {
-                    dbg!(DoDragDrop(
-                        &data_object,
-                        &drop_source,
-                        DROPEFFECT_COPY,
-                        &mut effect
-                    ))
-                };
+                let _ =
+                    unsafe { DoDragDrop(&data_object, &drop_source, DROPEFFECT_COPY, &mut effect) };
             }
         }
     }
+}
+
+fn get_hglobal(size: usize, buffer: Vec<u16>) -> HGLOBAL {
+    let handle = unsafe { GlobalAlloc(GMEM_FIXED, size).unwrap() };
+    let ptr = unsafe { GlobalLock(handle) };
+
+    let header = ptr as *mut DROPFILES;
+    unsafe {
+        (*header).pFiles = std::mem::size_of::<DROPFILES>() as u32;
+        (*header).fWide = BOOL(1);
+        std::ptr::copy(
+            buffer.as_ptr() as *const c_void,
+            ptr.add(std::mem::size_of::<DROPFILES>()),
+            buffer.len() * 2,
+        );
+        GlobalUnlock(handle)
+    };
+    handle
 }
