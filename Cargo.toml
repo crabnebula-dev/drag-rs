@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 raw-window-handle = "0.5"
+thiserror = "1"
 
 [target."cfg(target_os = \"macos\")".dependencies]
 cocoa = "0.25"

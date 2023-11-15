@@ -25,7 +25,11 @@ unsafe fn new_nsstring(s: &str) -> id {
     ns_string
 }
 
-pub fn start_drag<W: HasRawWindowHandle>(handle: &W, item: DragItem, image: Image) {
+pub fn start_drag<W: HasRawWindowHandle>(
+    handle: &W,
+    item: DragItem,
+    image: Image,
+) -> crate::Result<()> {
     if let RawWindowHandle::AppKit(w) = handle.raw_window_handle() {
         unsafe {
             let window = w.ns_window as id;
@@ -90,7 +94,7 @@ pub fn start_drag<W: HasRawWindowHandle>(handle: &W, item: DragItem, image: Imag
           1.0
         );
 
-            let cls = ClassDecl::new("WryDraggingSource", class!(NSObject));
+            let cls = ClassDecl::new("DragRsSource", class!(NSObject));
             let cls = match cls {
                 Some(mut cls) => {
                     cls.add_method(
@@ -116,9 +120,7 @@ pub fn start_drag<W: HasRawWindowHandle>(handle: &W, item: DragItem, image: Imag
 
                     cls.register()
                 }
-                None => {
-                    Class::get("WryDraggingSource").expect("Failed to get the class definition")
-                }
+                None => Class::get("DragRsSource").expect("Failed to get the class definition"),
             };
 
             let source: id = msg_send![cls, alloc];
@@ -126,5 +128,9 @@ pub fn start_drag<W: HasRawWindowHandle>(handle: &W, item: DragItem, image: Imag
 
             let _: () = msg_send![ns_view, beginDraggingSessionWithItems: file_items event: drag_event source: source];
         }
+
+        Ok(())
+    } else {
+        Err(crate::Error::UnsupportedWindowHandle)
     }
 }
