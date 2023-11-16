@@ -4,6 +4,7 @@ use crate::{DragItem, Image};
 
 use std::{
     ffi::{c_void, OsStr},
+    mem::size_of,
     os::windows::ffi::OsStrExt,
     sync::Once,
 };
@@ -11,6 +12,10 @@ use windows::{
     core::*,
     Win32::{
         Foundation::*,
+        Graphics::Gdi::{
+            CreateDIBSection, GetDC, ReleaseDC, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
+            HBITMAP,
+        },
         System::Com::*,
         System::Memory::*,
         System::Ole::OleInitialize,
@@ -18,7 +23,12 @@ use windows::{
             DoDragDrop, IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY,
         },
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
-        UI::Shell::DROPFILES,
+        UI::{
+            Shell::{
+                CLSID_DragDropHelper, IDragSourceHelper, SHDoDragDrop, DROPFILES, SHDRAGIMAGE,
+            },
+            WindowsAndMessaging::GetCursorPos,
+        },
     },
 };
 
@@ -158,7 +168,7 @@ impl Drop for DataObject {
 pub fn start_drag<W: HasRawWindowHandle>(
     handle: &W,
     item: DragItem,
-    _image: Image,
+    image: Image,
 ) -> crate::Result<()> {
     if let RawWindowHandle::Win32(_w) = handle.raw_window_handle() {
         match item {
@@ -185,10 +195,38 @@ pub fn start_drag<W: HasRawWindowHandle>(
                 let handle = get_hglobal(size, buffer)?;
                 let data_object: IDataObject = DataObject::new(handle).into();
                 let drop_source: IDropSource = DropSource::new().into();
+                let helper: IDragSourceHelper = create_instance(&CLSID_DragDropHelper).unwrap();
+                let hbitmap = match image {
+                    Image::Raw(bytes) => create_dragimage_bitmap(bytes),
+                    _ => panic!("Not implemented"),
+                };
+                let mut cursor_pos = POINT::default();
+                unsafe { GetCursorPos(&mut cursor_pos as *mut _) };
+
+                let mut image = SHDRAGIMAGE {
+                    sizeDragImage: SIZE { cx: 128, cy: 128 },
+                    ptOffset: POINT { x: 0, y: 0 },
+                    hbmpDragImage: hbitmap,
+                    crColorKey: COLORREF(0xFFFFFFFF),
+                };
+                unsafe {
+                    match helper.InitializeFromBitmap(&mut image as *mut _, &data_object.clone()) {
+                        Ok(_) => (),
+                        Err(e) => {
+                            return Err(e.into());
+                        }
+                    }
+                };
 
                 let mut effect = DROPEFFECT(0);
-                let _ =
-                    unsafe { DoDragDrop(&data_object, &drop_source, DROPEFFECT_COPY, &mut effect) };
+                let _ = unsafe {
+                    SHDoDragDrop(
+                        HWND(_w.hwnd as isize),
+                        &data_object,
+                        &drop_source,
+                        DROPEFFECT_COPY,
+                    )
+                };
             }
         }
 
@@ -214,4 +252,79 @@ fn get_hglobal(size: usize, buffer: Vec<u16>) -> Result<HGLOBAL> {
         GlobalUnlock(handle)
     }?;
     Ok(handle)
+}
+
+pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> windows::core::Result<T> {
+    unsafe { CoCreateInstance(clsid, None, CLSCTX_ALL) }
+}
+
+pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
+    let width = 128;
+    let height = 128;
+    let bitmap = BITMAPINFO {
+        bmiHeader: BITMAPINFOHEADER {
+            biSize: size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: width,
+            biHeight: height,
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: 0 as u32,
+            biSizeImage: (width * height * 4) as u32,
+            biXPelsPerMeter: 0,
+            biYPelsPerMeter: 0,
+            biClrUsed: 0,
+            biClrImportant: 0,
+        },
+        bmiColors: Default::default(),
+    };
+
+    unsafe {
+        let dc = GetDC(HWND(0));
+
+        let mut ptr = std::ptr::null_mut();
+
+        let bitmap = CreateDIBSection(
+            dc,
+            &bitmap as *const _,
+            DIB_RGB_COLORS,
+            &mut ptr as *mut *mut _ as *mut *mut c_void,
+            HANDLE(0),
+            0,
+        );
+
+        // Bitmap needs to be flipped and unpremultiplied
+
+        let dst_stride = (width * 4) as isize;
+        let ptr = ptr as *mut u8;
+        for y in 0..height as isize {
+            let src_line = image
+                .as_ptr()
+                .offset((height as isize - y - 1) * 256 as isize);
+
+            let dst_line = ptr.offset(y * dst_stride);
+
+            for x in (0..dst_stride).step_by(4) {
+                let (r, g, b, a) = (
+                    *src_line.offset(x) as i32,
+                    *src_line.offset(x + 1) as i32,
+                    *src_line.offset(x + 2) as i32,
+                    *src_line.offset(x + 3) as i32,
+                );
+
+                let (r, g, b) = if a == 0 {
+                    (0, 0, 0)
+                } else {
+                    (r * 255 / a, g * 255 / a, b * 255 / a)
+                };
+                *dst_line.offset(x) = b as u8;
+                *dst_line.offset(x + 1) = g as u8;
+                *dst_line.offset(x + 2) = r as u8;
+                *dst_line.offset(x + 3) = a as u8;
+            }
+        }
+
+        ReleaseDC(HWND(0), dc);
+
+        bitmap.unwrap()
+    }
 }
