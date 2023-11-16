@@ -64,23 +64,8 @@ impl IDropSource_Impl for DropSource {
     }
 }
 
-#[implement(IDropSource)]
-struct DummyDropSource;
-
-#[allow(non_snake_case)]
-impl IDropSource_Impl for DummyDropSource {
-    fn QueryContinueDrag(
-        &self,
-        _fescapepressed: BOOL,
-        _grfkeystate: MODIFIERKEYS_FLAGS,
-    ) -> HRESULT {
-        S_OK
-    }
-
-    fn GiveFeedback(&self, _dweffect: DROPEFFECT) -> HRESULT {
-        DRAGDROP_S_USEDEFAULTCURSORS
-    }
-}
+#[implement()]
+struct DummyRelease;
 
 impl DataObject {
     fn new(handle: HGLOBAL) -> Self {
