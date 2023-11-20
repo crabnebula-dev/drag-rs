@@ -64,23 +64,8 @@ impl IDropSource_Impl for DropSource {
     }
 }
 
-#[implement(IDropSource)]
-struct DummyDropSource;
-
-#[allow(non_snake_case)]
-impl IDropSource_Impl for DummyDropSource {
-    fn QueryContinueDrag(
-        &self,
-        _fescapepressed: BOOL,
-        _grfkeystate: MODIFIERKEYS_FLAGS,
-    ) -> HRESULT {
-        S_OK
-    }
-
-    fn GiveFeedback(&self, _dweffect: DROPEFFECT) -> HRESULT {
-        DRAGDROP_S_USEDEFAULTCURSORS
-    }
-}
+#[implement()]
+struct DummyRelease;
 
 impl DataObject {
     fn new(handle: HGLOBAL) -> Self {
@@ -105,7 +90,7 @@ impl IDataObject_Impl for DataObject {
             Ok(STGMEDIUM {
                 tymed: TYMED_HGLOBAL.0 as u32,
                 u: STGMEDIUM_0 { hGlobal: self.0 },
-                pUnkForRelease: std::mem::ManuallyDrop::new(Some(DummyDropSource.into())),
+                pUnkForRelease: std::mem::ManuallyDrop::new(Some(DummyRelease.into())),
             })
         } else {
             Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
