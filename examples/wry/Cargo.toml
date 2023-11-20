@@ -1,12 +1,8 @@
 [package]
-name = "wry-example"
+name = "wry-app"
 version = "0.0.0"
 publish = false
 edition = "2021"
-
-[[bin]]
-name = "wry"
-path = "wry.rs"
 
 [dependencies]
 drag = { path = "../../crates/drag" }

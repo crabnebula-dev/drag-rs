@@ -1,12 +1,8 @@
 [package]
-name = "tauri-example"
+name = "tauri-app"
 version = "0.0.0"
 publish = false
 edition = "2021"
-
-[[bin]]
-name = "tauri"
-path = "tauri.rs"
 
 [build-dependencies]
 tauri-build = "1"
