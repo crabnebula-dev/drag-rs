@@ -1,0 +1,28 @@
+{
+  "build": {
+    "distDir": "./index.html",
+    "devPath": "./index.html",
+    "withGlobalTauri": true
+  },
+  "tauri": {
+    "bundle": {
+      "identifier": "dev.crabnebula.drag",
+      "icon": [
+        "../icon.png"
+      ],
+      "resources": ["../icon.png"]
+    },
+    "windows": [
+      {
+        "title": "Drag",
+        "width": 400,
+        "height": 100
+      }
+    ],
+    "allowlist": {
+      "path": {
+        "all": true
+      }
+    }
+  }
+}

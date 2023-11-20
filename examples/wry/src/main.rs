@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: MIT
 
 use drag::{start_drag, DragItem, Image};
-use tao::{
+use wry::application::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoopBuilder},
-    window::WindowBuilder,
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
 };
-use wry::WebViewBuilder;
+use wry::webview::WebViewBuilder;
 
 #[cfg(not(any(
     target_os = "windows",
@@ -24,7 +24,7 @@ enum UserEvent {
 }
 
 fn main() -> wry::Result<()> {
-    let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    let event_loop = EventLoop::with_user_event();
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(400., 100.))
         .with_title("Drag Example")
@@ -67,35 +67,13 @@ fn main() -> wry::Result<()> {
   "#;
 
     let proxy = event_loop.create_proxy();
-    let handler = move |req: String| match req.as_str() {
-        "startDrag" => {
+    let handler = move |_w: &Window, req: String| {
+        if req == "startDrag" {
             let _ = proxy.send_event(UserEvent::StartDrag);
         }
-        _ => {}
     };
 
-    #[cfg(any(
-        target_os = "windows",
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "android"
-    ))]
-    let builder = WebViewBuilder::new(&window);
-
-    #[cfg(not(any(
-        target_os = "windows",
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "android"
-    )))]
-    let builder = {
-        use wry::WebViewBuilderExtUnix;
-
-        let vbox = window.default_vbox().unwrap();
-        WebViewBuilder::new_gtk(vbox)
-    };
-
-    let _webview = builder
+    let webview = WebViewBuilder::new(window)?
         .with_html(HTML)?
         .with_ipc_handler(handler)
         .with_accept_first_mouse(true)
@@ -113,6 +91,8 @@ fn main() -> wry::Result<()> {
 
             Event::UserEvent(e) => match e {
                 UserEvent::StartDrag => {
+                    let window = webview.window();
+
                     #[cfg(any(
                         target_os = "windows",
                         target_os = "macos",
@@ -131,10 +111,8 @@ fn main() -> wry::Result<()> {
 
                     start_drag(
                         window,
-                        DragItem::Files(vec![std::path::PathBuf::from(
-                            std::fs::canonicalize("examples/icon.png").unwrap(),
-                        )]),
-                        Image::Raw(include_bytes!("../examples/icon.png").to_vec()),
+                        DragItem::Files(vec![std::fs::canonicalize("../icon.png").unwrap()]),
+                        Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("examples/icon.png".into()),
                     )
                     .unwrap();
@@ -142,5 +120,5 @@ fn main() -> wry::Result<()> {
             },
             _ => (),
         }
-    });
+    })
 }
