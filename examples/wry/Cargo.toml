@@ -6,5 +6,4 @@ edition = "2021"
 
 [dependencies]
 drag = { path = "../../crates/drag" }
-tao = "0.23"
-wry = { git = "https://github.com/tauri-apps/wry.git", branch = "dev" }
+wry = "0.24"
