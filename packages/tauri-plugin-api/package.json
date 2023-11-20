@@ -4,6 +4,9 @@
   "author": "Lucas <lucas@crabnebula.dev>",
   "description": "Start a drag operation out of a Tauri window",
   "type": "module",
+  "types": "./dist-js/index.d.ts",
+  "module": "./dist-js/index.js",
+  "main": "./dist-js/index.cjs",
   "exports": {
     "types": "./dist-js/index.d.ts",
     "import": "./dist-js/index.js",
