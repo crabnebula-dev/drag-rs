@@ -67,11 +67,10 @@ fn main() -> wry::Result<()> {
   "#;
 
     let proxy = event_loop.create_proxy();
-    let handler = move |_w: &Window, req: String| match req.as_str() {
-        "startDrag" => {
+    let handler = move |_w: &Window, req: String| {
+        if req == "startDrag" {
             let _ = proxy.send_event(UserEvent::StartDrag);
         }
-        _ => {}
     };
 
     let webview = WebViewBuilder::new(window)?
@@ -112,9 +111,7 @@ fn main() -> wry::Result<()> {
 
                     start_drag(
                         window,
-                        DragItem::Files(vec![std::path::PathBuf::from(
-                            std::fs::canonicalize("../icon.png").unwrap(),
-                        )]),
+                        DragItem::Files(vec![std::fs::canonicalize("../icon.png").unwrap()]),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("examples/icon.png".into()),
                     )

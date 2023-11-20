@@ -47,9 +47,9 @@ fn main() {
                 } => {
                     start_drag(
                         &window,
-                        DragItem::Files(vec![std::path::PathBuf::from(
-                            std::fs::canonicalize("./examples/icon.png").unwrap(),
-                        )]),
+                        DragItem::Files(
+                            vec![std::fs::canonicalize("./examples/icon.png").unwrap()],
+                        ),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("examples/icon.png".into()),
                     )
