@@ -131,11 +131,16 @@ fn main() -> wry::Result<()> {
 
                     start_drag(
                         window,
-                        DragItem::Files(vec![std::path::PathBuf::from(
-                            std::fs::canonicalize("examples/icon.png").unwrap(),
-                        )]),
-                        Image::Raw(include_bytes!("../examples/icon.png").to_vec()),
-                        // Image::File("examples/icon.png".into()),
+                        DragItem::Files(vec![
+                            std::path::PathBuf::from(
+                                std::fs::canonicalize("examples/icon.png").unwrap(),
+                            ),
+                            std::path::PathBuf::from(
+                                std::fs::canonicalize("examples/icon.png").unwrap(),
+                            ),
+                        ]),
+                        // Image::Raw(include_bytes!("../examples/lena.bmp").to_vec()),
+                        Image::File(std::fs::canonicalize("examples/lena.bmp").unwrap()),
                     )
                     .unwrap();
                 }

@@ -3,12 +3,13 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use crate::{DragItem, Image};
 
 use std::{
-    cell::RefCell,
     collections::HashMap,
     ffi::{c_void, OsStr},
+    iter::once,
     mem::size_of,
     os::windows::ffi::OsStrExt,
-    sync::Once,
+    path::PathBuf,
+    sync::{Once, RwLock},
 };
 use windows::{
     core::*,
@@ -20,14 +21,14 @@ use windows::{
         },
         System::Com::*,
         System::Memory::*,
+        System::Ole::OleInitialize,
         System::Ole::{IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY},
-        System::Ole::{OleInitialize, ReleaseStgMedium},
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
         UI::{
             Shell::{
                 CLSID_DragDropHelper, IDragSourceHelper, SHDoDragDrop, DROPFILES, SHDRAGIMAGE,
             },
-            WindowsAndMessaging::GetCursorPos,
+            WindowsAndMessaging::{LoadImageW, IMAGE_BITMAP, LR_DEFAULTSIZE, LR_LOADFROMFILE},
         },
     },
 };
@@ -51,10 +52,9 @@ struct FormatetcKey {
 }
 
 #[implement(IDataObject)]
-#[derive(Clone)]
 struct DataObject {
-    h_global: HGLOBAL,
-    stgms: RefCell<HashMap<FormatetcKey, STGMEDIUM>>,
+    files: Vec<PathBuf>,
+    stgms: RwLock<HashMap<FormatetcKey, STGMEDIUM>>,
 }
 
 impl DataObject {
@@ -63,25 +63,15 @@ impl DataObject {
             cf_format: formatetc.cfFormat,
             tymed: formatetc.tymed,
         };
-
-        unsafe {
-            let mut bm = self.stgms.borrow_mut();
-            if let Some(stgm) = bm.get_mut(&key) {
-                if stgm.tymed != TYMED_ISTREAM.0 as u32 && stgm.tymed != TYMED_ISTORAGE.0 as u32 {
-                    ReleaseStgMedium(stgm);
-                }
-                bm.remove(&key);
-            }
-
-            bm.insert(key.clone(), stgmedium);
-        }
+        let mut bm = self.stgms.write().unwrap();
+        bm.insert(key.clone(), stgmedium);
     }
-    fn get_stgmedium(&self, formatetc: &FORMATETC) -> Option<*const STGMEDIUM> {
+    fn get_stgmedium(&self, formatetc: &FORMATETC) -> Option<STGMEDIUM> {
         let key = FormatetcKey {
             cf_format: formatetc.cfFormat,
             tymed: formatetc.tymed,
         };
-        self.stgms.borrow().get(&key).map(|v| v as *const _)
+        self.stgms.write().unwrap().remove(&key)
     }
 }
 
@@ -115,10 +105,10 @@ impl IDropSource_Impl for DropSource {
 struct DummyRelease;
 
 impl DataObject {
-    fn new(handle: HGLOBAL) -> Self {
+    fn new(files: Vec<PathBuf>) -> Self {
         Self {
-            h_global: handle,
-            stgms: RefCell::new(HashMap::new()),
+            files,
+            stgms: RwLock::new(HashMap::new()),
         }
     }
 
@@ -136,29 +126,32 @@ impl DataObject {
 #[allow(non_snake_case)]
 impl IDataObject_Impl for DataObject {
     fn GetData(&self, pformatetc: *const FORMATETC) -> Result<STGMEDIUM> {
-        if let Some(format_etc) = unsafe { pformatetc.as_ref() } {
-            if let Some(result) = self.get_stgmedium(format_etc) {
-                let result = unsafe { result.read() };
-                if result.tymed == TYMED_HGLOBAL.0 as u32 {
-                    unsafe {
-                        dbg!(result.u.hGlobal);
-                    }
-                } else {
-                    dbg!(result.tymed);
+        if Self::is_supported_format(pformatetc) {
+            let mut buffer = Vec::new();
+            for path in &self.files {
+                let path = OsStr::new(&path);
+                for code in path.encode_wide() {
+                    buffer.push(code);
                 }
-                // FIXME: it crash when tymed is ISTREAM
-                Ok(result.clone())
+                buffer.push(0);
+            }
+
+            // We finish with a double null.
+            buffer.push(0);
+
+            let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
+            let handle = get_hglobal(size, buffer)?;
+            Ok(STGMEDIUM {
+                tymed: TYMED_HGLOBAL.0 as u32,
+                u: STGMEDIUM_0 { hGlobal: handle },
+                pUnkForRelease: std::mem::ManuallyDrop::new(Some(DummyRelease.into())),
+            })
+        } else if let Some(format_etc) = unsafe { pformatetc.as_ref() } {
+            if let Some(result) = self.get_stgmedium(format_etc) {
+                Ok(result)
             } else {
                 Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
             }
-        } else if Self::is_supported_format(pformatetc) {
-            Ok(STGMEDIUM {
-                tymed: TYMED_HGLOBAL.0 as u32,
-                u: STGMEDIUM_0 {
-                    hGlobal: self.h_global,
-                },
-                pUnkForRelease: std::mem::ManuallyDrop::new(Some(DummyRelease.into())),
-            })
         } else {
             Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
         }
@@ -168,13 +161,8 @@ impl IDataObject_Impl for DataObject {
         Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
     }
 
-    fn QueryGetData(&self, pformatetc: *const FORMATETC) -> HRESULT {
+    fn QueryGetData(&self, _pformatetc: *const FORMATETC) -> HRESULT {
         S_OK
-        // if Self::is_supported_format(pformatetc) {
-        //     S_OK
-        // } else {
-        //     DV_E_FORMATETC
-        // }
     }
 
     fn GetCanonicalFormatEtc(
@@ -224,7 +212,7 @@ impl IDataObject_Impl for DataObject {
 
 impl Drop for DataObject {
     fn drop(&mut self) {
-        let _ = unsafe { GlobalFree(self.h_global) };
+        // let _ = unsafe { GlobalFree(self.h_global) };
     }
 }
 
@@ -242,40 +230,36 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         return Err(e.clone().into());
                     }
                 }
-                let mut buffer = Vec::new();
-                for path in files {
-                    let path = OsStr::new(&path);
-                    for code in path.encode_wide() {
-                        buffer.push(code);
-                    }
-                    buffer.push(0);
-                }
-
-                // We finish with a double null.
-                buffer.push(0);
-
-                let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
-                let handle = get_hglobal(size, buffer)?;
-                let data_object: IDataObject = DataObject::new(handle).into();
+                let data_object: IDataObject = DataObject::new(files).into();
                 let drop_source: IDropSource = DropSource::new().into();
                 let helper: IDragSourceHelper = create_instance(&CLSID_DragDropHelper).unwrap();
-                // let hbitmap = match image {
-                //     Image::Raw(bytes) => create_dragimage_bitmap(bytes),
-                //     _ => panic!("Not implemented"),
-                // };
+                let hbitmap = match image {
+                    Image::Raw(bytes) => create_dragimage_bitmap(bytes),
+                    Image::File(path) => unsafe {
+                        let wide_path: Vec<u16> =
+                            path.as_os_str().encode_wide().chain(once(0)).collect();
+
+                        match LoadImageW(
+                            HMODULE::default(),
+                            PCWSTR::from_raw(wide_path.as_ptr()),
+                            IMAGE_BITMAP,
+                            128_i32,
+                            128_i32,
+                            LR_DEFAULTSIZE | LR_LOADFROMFILE,
+                        ) {
+                            Ok(handle) => HBITMAP(handle.0),
+                            Err(_) => HBITMAP(0),
+                        }
+                    },
+                };
 
                 unsafe {
-                    let mut cursor_pos = POINT::default();
-                    unsafe { GetCursorPos(&mut cursor_pos as *mut _) };
-
-                    // let image = SHDRAGIMAGE {
-                    //     sizeDragImage: SIZE { cx: 128, cy: 128 },
-                    //     ptOffset: POINT { x: 0, y: 0 },
-                    //     hbmpDragImage: hbitmap,
-                    //     crColorKey: COLORREF(0xFFFFFFFF),
-                    // };
-
-                    let image = create_dummy_drag_icon();
+                    let image = SHDRAGIMAGE {
+                        sizeDragImage: SIZE { cx: 128, cy: 128 },
+                        ptOffset: POINT { x: 0, y: 0 },
+                        hbmpDragImage: hbitmap,
+                        crColorKey: COLORREF(0xFFFFFFFF),
+                    };
 
                     match helper.InitializeFromBitmap(&image, &data_object) {
                         Ok(_) => {}
@@ -284,15 +268,12 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         }
                     }
 
-                    let mut effect = DROPEFFECT(0);
-                    let _ = unsafe {
-                        SHDoDragDrop(
-                            HWND(_w.hwnd as isize),
-                            &data_object,
-                            &drop_source,
-                            DROPEFFECT_COPY,
-                        )
-                    };
+                    let _ = SHDoDragDrop(
+                        HWND(_w.hwnd as isize),
+                        &data_object,
+                        &drop_source,
+                        DROPEFFECT_COPY,
+                    );
                 };
             }
         }
@@ -325,64 +306,9 @@ pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> windows::co
     unsafe { CoCreateInstance(clsid, None, CLSCTX_ALL) }
 }
 
-fn create_dummy_drag_icon() -> SHDRAGIMAGE {
-    unsafe {
-        let mut ptr = std::ptr::null_mut();
-        let dc = GetDC(HWND(0));
-        let bitmap_info = BITMAPINFO {
-            bmiHeader: BITMAPINFOHEADER {
-                biSize: size_of::<BITMAPINFOHEADER>() as u32,
-                biWidth: 128,
-                biHeight: 128,
-                biPlanes: 1,
-                biBitCount: 32,
-                biCompression: 0_u32,
-                biSizeImage: (128 * 128 * 4) as u32,
-                biXPelsPerMeter: 0,
-                biYPelsPerMeter: 0,
-                biClrUsed: 0,
-                biClrImportant: 0,
-            },
-            bmiColors: Default::default(),
-        };
-
-        let bitmap = CreateDIBSection(
-            dc,
-            &bitmap_info as *const _,
-            DIB_RGB_COLORS,
-            &mut ptr as *mut *mut _,
-            HANDLE(0),
-            0,
-        )
-        .unwrap();
-
-        let dst_stride = (128 * 4) as isize;
-        let ptr = ptr as *mut u8;
-        for y in 0..128_isize {
-            let dst_line = ptr.offset(y * dst_stride);
-
-            for x in (0..dst_stride).step_by(4) {
-                *dst_line.offset(x) = 0;
-                *dst_line.offset(x + 1) = 0;
-                *dst_line.offset(x + 2) = 255;
-                *dst_line.offset(x + 3) = 255;
-            }
-        }
-
-        ReleaseDC(HWND(0), dc);
-
-        SHDRAGIMAGE {
-            sizeDragImage: SIZE { cx: 128, cy: 128 },
-            ptOffset: POINT { x: 64, y: 120 },
-            hbmpDragImage: bitmap,
-            crColorKey: COLORREF(0xFFFFFFFF),
-        }
-    }
-}
-
 pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
-    let width = 128;
-    let height = 128;
+    let width = 512;
+    let height = 512;
     let bitmap = BITMAPINFO {
         bmiHeader: BITMAPINFOHEADER {
             biSize: size_of::<BITMAPINFOHEADER>() as u32,
@@ -431,11 +357,11 @@ pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
                     *src_line.offset(x + 3) as i32,
                 );
 
-                // let (r, g, b) = if a == 0 {
-                //     (0, 0, 0)
-                // } else {
-                //     (r * 255 / a, g * 255 / a, b * 255 / a)
-                // };
+                let (r, g, b) = if a == 0 {
+                    (0, 0, 0)
+                } else {
+                    (r * 255 / a, g * 255 / a, b * 255 / a)
+                };
                 *dst_line.offset(x) = b as u8;
                 *dst_line.offset(x + 1) = g as u8;
                 *dst_line.offset(x + 2) = r as u8;
