@@ -15,8 +15,8 @@ use windows::{
     Win32::{
         Foundation::*,
         Graphics::Gdi::{
-            CreateDIBSection, GetDC, ReleaseDC, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
-            HBITMAP,
+            CreateDIBSection, GetDC, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
+            DIB_RGB_COLORS, HBITMAP,
         },
         System::Com::*,
         System::Memory::*,
@@ -43,12 +43,6 @@ fn init_ole() {
         // I guess we never deinitialize for now?
         // OleUninitialize
     });
-}
-
-#[derive(Hash, PartialEq, Eq, Clone)]
-struct FormatetcKey {
-    cf_format: u16,
-    tymed: u32,
 }
 
 #[implement(IDataObject)]
@@ -83,9 +77,6 @@ impl IDropSource_Impl for DropSource {
     }
 }
 
-#[implement()]
-struct DummyRelease;
-
 impl DataObject {
     fn new(files: Vec<PathBuf>) -> Self {
         unsafe {
@@ -105,6 +96,21 @@ impl DataObject {
             false
         }
     }
+
+    fn clone_drop_hglobal(&self) -> Result<HGLOBAL> {
+        let mut buffer = Vec::new();
+        for path in &self.files {
+            let path = OsStr::new(&path);
+            for code in path.encode_wide() {
+                buffer.push(code);
+            }
+            buffer.push(0);
+        }
+        buffer.push(0);
+        let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
+        let handle = get_hglobal(size, buffer)?;
+        Ok(handle)
+    }
 }
 
 #[allow(non_snake_case)]
@@ -112,23 +118,11 @@ impl IDataObject_Impl for DataObject {
     fn GetData(&self, pformatetc: *const FORMATETC) -> Result<STGMEDIUM> {
         unsafe {
             if Self::is_supported_format(pformatetc) {
-                let mut buffer = Vec::new();
-                for path in &self.files {
-                    let path = OsStr::new(&path);
-                    for code in path.encode_wide() {
-                        buffer.push(code);
-                    }
-                    buffer.push(0);
-                }
-
-                // We finish with a double null.
-                buffer.push(0);
-
-                let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
-                let handle = get_hglobal(size, buffer)?;
                 Ok(STGMEDIUM {
                     tymed: TYMED_HGLOBAL.0 as u32,
-                    u: STGMEDIUM_0 { hGlobal: handle },
+                    u: STGMEDIUM_0 {
+                        hGlobal: self.clone_drop_hglobal()?,
+                    },
                     pUnkForRelease: std::mem::ManuallyDrop::new(None),
                 })
             } else {
@@ -191,12 +185,6 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
-impl Drop for DataObject {
-    fn drop(&mut self) {
-        drop(&self.inner_shell_obj);
-    }
-}
-
 pub fn start_drag<W: HasRawWindowHandle>(
     handle: &W,
     item: DragItem,
@@ -214,38 +202,14 @@ pub fn start_drag<W: HasRawWindowHandle>(
                 let data_object: IDataObject = DataObject::new(files).into();
                 let drop_source: IDropSource = DropSource::new().into();
                 let helper: IDragSourceHelper = create_instance(&CLSID_DragDropHelper).unwrap();
-                let hbitmap = match image {
-                    Image::Raw(bytes) => create_dragimage_bitmap(bytes),
-                    Image::File(path) => unsafe {
-                        let wide_path: Vec<u16> =
-                            path.as_os_str().encode_wide().chain(once(0)).collect();
-
-                        match LoadImageW(
-                            HMODULE::default(),
-                            PCWSTR::from_raw(wide_path.as_ptr()),
-                            IMAGE_BITMAP,
-                            128_i32,
-                            128_i32,
-                            LR_DEFAULTSIZE | LR_LOADFROMFILE,
-                        ) {
-                            Ok(handle) => HBITMAP(handle.0),
-                            Err(_) => HBITMAP(0),
-                        }
-                    },
-                };
 
                 unsafe {
-                    let image = SHDRAGIMAGE {
-                        sizeDragImage: SIZE { cx: 128, cy: 128 },
-                        ptOffset: POINT { x: 0, y: 0 },
-                        hbmpDragImage: hbitmap,
-                        crColorKey: COLORREF(0xFFFFFFFF),
-                    };
-
-                    match helper.InitializeFromBitmap(&image, &data_object) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            return Err(e.into());
+                    if let Some(drag_icon) = get_drag_icon_image(image) {
+                        match helper.InitializeFromBitmap(&drag_icon, &data_object) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                return Err(e.into());
+                            }
                         }
                     }
 
@@ -263,6 +227,45 @@ pub fn start_drag<W: HasRawWindowHandle>(
     } else {
         Err(crate::Error::UnsupportedWindowHandle)
     }
+}
+
+fn get_drag_icon_image(image: Image) -> Option<SHDRAGIMAGE> {
+    let hbitmap = match image {
+        Image::Raw(bytes) => Some(create_dragimage_bitmap(bytes)),
+        Image::File(path) => unsafe {
+            let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
+            match LoadImageW(
+                HMODULE::default(),
+                PCWSTR::from_raw(wide_path.as_ptr()),
+                IMAGE_BITMAP,
+                0_i32,
+                0_i32,
+                LR_DEFAULTSIZE | LR_LOADFROMFILE,
+            ) {
+                Ok(handle) => Some(HBITMAP(handle.0)),
+                Err(_) => None,
+            }
+        },
+    };
+    hbitmap.map(|hbitmap| unsafe {
+        let mut bitmap: BITMAP = BITMAP::default();
+        let (cx, cy) = if 0
+            == GetObjectW(
+                hbitmap,
+                std::mem::size_of::<BITMAP>() as i32,
+                Some(&mut bitmap as *mut BITMAP as *mut c_void),
+            ) {
+            (128, 128)
+        } else {
+            (bitmap.bmWidth, bitmap.bmHeight)
+        };
+        SHDRAGIMAGE {
+            sizeDragImage: SIZE { cx, cy },
+            ptOffset: POINT { x: 0, y: 0 },
+            hbmpDragImage: hbitmap,
+            crColorKey: COLORREF(0xFFFFFFFF),
+        }
+    })
 }
 
 fn get_hglobal(size: usize, buffer: Vec<u16>) -> Result<HGLOBAL> {
