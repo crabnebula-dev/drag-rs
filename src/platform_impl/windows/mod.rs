@@ -3,13 +3,12 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use crate::{DragItem, Image};
 
 use std::{
-    collections::HashMap,
     ffi::{c_void, OsStr},
     iter::once,
     mem::size_of,
     os::windows::ffi::OsStrExt,
     path::PathBuf,
-    sync::{Once, RwLock},
+    sync::Once,
 };
 use windows::{
     core::*,
@@ -26,7 +25,8 @@ use windows::{
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
         UI::{
             Shell::{
-                CLSID_DragDropHelper, IDragSourceHelper, SHDoDragDrop, DROPFILES, SHDRAGIMAGE,
+                CLSID_DragDropHelper, IDragSourceHelper, SHCreateDataObject, SHDoDragDrop,
+                DROPFILES, SHDRAGIMAGE,
             },
             WindowsAndMessaging::{LoadImageW, IMAGE_BITMAP, LR_DEFAULTSIZE, LR_LOADFROMFILE},
         },
@@ -54,25 +54,7 @@ struct FormatetcKey {
 #[implement(IDataObject)]
 struct DataObject {
     files: Vec<PathBuf>,
-    stgms: RwLock<HashMap<FormatetcKey, STGMEDIUM>>,
-}
-
-impl DataObject {
-    fn set_stgmedium(&self, formatetc: &FORMATETC, stgmedium: STGMEDIUM) {
-        let key = FormatetcKey {
-            cf_format: formatetc.cfFormat,
-            tymed: formatetc.tymed,
-        };
-        let mut bm = self.stgms.write().unwrap();
-        bm.insert(key.clone(), stgmedium);
-    }
-    fn get_stgmedium(&self, formatetc: &FORMATETC) -> Option<STGMEDIUM> {
-        let key = FormatetcKey {
-            cf_format: formatetc.cfFormat,
-            tymed: formatetc.tymed,
-        };
-        self.stgms.write().unwrap().remove(&key)
-    }
+    inner_shell_obj: IDataObject,
 }
 
 #[implement(IDropSource)]
@@ -106,9 +88,11 @@ struct DummyRelease;
 
 impl DataObject {
     fn new(files: Vec<PathBuf>) -> Self {
-        Self {
-            files,
-            stgms: RwLock::new(HashMap::new()),
+        unsafe {
+            Self {
+                files,
+                inner_shell_obj: SHCreateDataObject(None, None, None).unwrap(),
+            }
         }
     }
 
@@ -126,34 +110,30 @@ impl DataObject {
 #[allow(non_snake_case)]
 impl IDataObject_Impl for DataObject {
     fn GetData(&self, pformatetc: *const FORMATETC) -> Result<STGMEDIUM> {
-        if Self::is_supported_format(pformatetc) {
-            let mut buffer = Vec::new();
-            for path in &self.files {
-                let path = OsStr::new(&path);
-                for code in path.encode_wide() {
-                    buffer.push(code);
+        unsafe {
+            if Self::is_supported_format(pformatetc) {
+                let mut buffer = Vec::new();
+                for path in &self.files {
+                    let path = OsStr::new(&path);
+                    for code in path.encode_wide() {
+                        buffer.push(code);
+                    }
+                    buffer.push(0);
                 }
+
+                // We finish with a double null.
                 buffer.push(0);
-            }
 
-            // We finish with a double null.
-            buffer.push(0);
-
-            let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
-            let handle = get_hglobal(size, buffer)?;
-            Ok(STGMEDIUM {
-                tymed: TYMED_HGLOBAL.0 as u32,
-                u: STGMEDIUM_0 { hGlobal: handle },
-                pUnkForRelease: std::mem::ManuallyDrop::new(Some(DummyRelease.into())),
-            })
-        } else if let Some(format_etc) = unsafe { pformatetc.as_ref() } {
-            if let Some(result) = self.get_stgmedium(format_etc) {
-                Ok(result)
+                let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
+                let handle = get_hglobal(size, buffer)?;
+                Ok(STGMEDIUM {
+                    tymed: TYMED_HGLOBAL.0 as u32,
+                    u: STGMEDIUM_0 { hGlobal: handle },
+                    pUnkForRelease: std::mem::ManuallyDrop::new(None),
+                })
             } else {
-                Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
+                self.inner_shell_obj.GetData(pformatetc)
             }
-        } else {
-            Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
         }
     }
 
@@ -161,8 +141,14 @@ impl IDataObject_Impl for DataObject {
         Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
     }
 
-    fn QueryGetData(&self, _pformatetc: *const FORMATETC) -> HRESULT {
-        S_OK
+    fn QueryGetData(&self, pformatetc: *const FORMATETC) -> HRESULT {
+        unsafe {
+            if Self::is_supported_format(pformatetc) {
+                S_OK
+            } else {
+                self.inner_shell_obj.QueryGetData(pformatetc)
+            }
+        }
     }
 
     fn GetCanonicalFormatEtc(
@@ -178,14 +164,9 @@ impl IDataObject_Impl for DataObject {
         &self,
         pformatetc: *const FORMATETC,
         pmedium: *const STGMEDIUM,
-        _frelease: BOOL,
+        frelease: BOOL,
     ) -> Result<()> {
-        unsafe {
-            if let Some(format_etc) = pformatetc.as_ref() {
-                self.set_stgmedium(format_etc, pmedium.read())
-            }
-            Ok(())
-        }
+        unsafe { self.inner_shell_obj.SetData(pformatetc, pmedium, frelease) }
     }
 
     fn EnumFormatEtc(&self, _dwdirection: u32) -> Result<IEnumFORMATETC> {
@@ -212,7 +193,7 @@ impl IDataObject_Impl for DataObject {
 
 impl Drop for DataObject {
     fn drop(&mut self) {
-        // let _ = unsafe { GlobalFree(self.h_global) };
+        drop(&self.inner_shell_obj);
     }
 }
 
@@ -316,7 +297,7 @@ pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
             biHeight: height,
             biPlanes: 1,
             biBitCount: 32,
-            biCompression: 0 as u32,
+            biCompression: 0_u32,
             biSizeImage: (width * height * 4) as u32,
             biXPelsPerMeter: 0,
             biYPelsPerMeter: 0,
@@ -345,7 +326,7 @@ pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
         let dst_stride = (width * 4) as isize;
         let ptr = ptr as *mut u8;
         for y in 0..height as isize {
-            let src_line = image.as_ptr().offset(y * 256 as isize);
+            let src_line = image.as_ptr().offset(y * 256_isize);
 
             let dst_line = ptr.offset(y * dst_stride);
 
