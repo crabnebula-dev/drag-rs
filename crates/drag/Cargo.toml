@@ -30,6 +30,7 @@ features = [
     "Win32_System_SystemServices",
     "Win32_UI_Shell",
     "Win32_UI_Shell_Common",
+    "Win32_UI_WindowsAndMessaging",
 ]
 
 [features]

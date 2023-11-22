@@ -3,7 +3,7 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use crate::{DragItem, Image};
 
 use std::{
-    ffi::{c_void, OsStr},
+    ffi::c_void,
     iter::once,
     mem::size_of,
     os::windows::ffi::OsStrExt,
