@@ -198,15 +198,13 @@ pub fn start_drag<W: HasRawWindowHandle>(
                 }
                 let data_object: IDataObject = DataObject::new(files).into();
                 let drop_source: IDropSource = DropSource::new().into();
-                let helper: IDragSourceHelper = create_instance(&CLSID_DragDropHelper).unwrap();
 
                 unsafe {
                     if let Some(drag_icon) = get_drag_icon_image(image) {
-                        match helper.InitializeFromBitmap(&drag_icon, &data_object) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                return Err(e.into());
-                            }
+                        if let Ok(helper) =
+                            create_instance::<IDragSourceHelper>(&CLSID_DragDropHelper)
+                        {
+                            let _ = helper.InitializeFromBitmap(&drag_icon, &data_object);
                         }
                     }
 
@@ -228,7 +226,9 @@ pub fn start_drag<W: HasRawWindowHandle>(
 
 fn get_drag_icon_image(image: Image) -> Option<SHDRAGIMAGE> {
     let hbitmap = match image {
-        Image::Raw(bytes) => Some(create_dragimage_bitmap(bytes)),
+        // not supported
+        Image::Raw(_bytes) => None,
+        // only support BITMAP file
         Image::File(path) => unsafe {
             let path = adjust_canonicalization(path);
             let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
@@ -288,6 +288,8 @@ pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> windows::co
     unsafe { CoCreateInstance(clsid, None, CLSCTX_ALL) }
 }
 
+// FIXME: incomplete
+#[allow(dead_code)]
 pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
     let width = 512;
     let height = 512;
@@ -357,7 +359,7 @@ pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
     }
 }
 
-/// Using std::fs::canonicalize in Windows will convert to UNC path ("\\?\C:\\path\to\file.txt")
+/// Using std::fs::canonicalize on Windows will retuen a UNC path ("\\?\C:\\path\to\file.txt")
 /// Some applications do not support this for dropping as URI.
 fn adjust_canonicalization<P: AsRef<Path>>(p: P) -> PathBuf {
     let p = p.as_ref().display().to_string();

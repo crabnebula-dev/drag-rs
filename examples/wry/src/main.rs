@@ -113,7 +113,7 @@ fn main() -> wry::Result<()> {
                         window,
                         DragItem::Files(vec![std::fs::canonicalize("../icon.png").unwrap()]),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
-                        // Image::File("examples/icon.png".into()),
+                        // Image::File("../icon.png".into()),
                     )
                     .unwrap();
                 }
