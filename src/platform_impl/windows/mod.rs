@@ -7,7 +7,7 @@ use std::{
     iter::once,
     mem::size_of,
     os::windows::ffi::OsStrExt,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Once,
 };
 use windows::{
@@ -81,7 +81,7 @@ impl DataObject {
     fn new(files: Vec<PathBuf>) -> Self {
         unsafe {
             Self {
-                files,
+                files: files.iter().map(adjust_canonicalization).collect(),
                 inner_shell_obj: SHCreateDataObject(None, None, None).unwrap(),
             }
         }
@@ -100,11 +100,8 @@ impl DataObject {
     fn clone_drop_hglobal(&self) -> Result<HGLOBAL> {
         let mut buffer = Vec::new();
         for path in &self.files {
-            let path = OsStr::new(&path);
-            for code in path.encode_wide() {
-                buffer.push(code);
-            }
-            buffer.push(0);
+            let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
+            buffer.extend(wide_path);
         }
         buffer.push(0);
         let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
@@ -233,6 +230,7 @@ fn get_drag_icon_image(image: Image) -> Option<SHDRAGIMAGE> {
     let hbitmap = match image {
         Image::Raw(bytes) => Some(create_dragimage_bitmap(bytes)),
         Image::File(path) => unsafe {
+            let path = adjust_canonicalization(path);
             let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
             match LoadImageW(
                 HMODULE::default(),
@@ -356,5 +354,16 @@ pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
         ReleaseDC(HWND(0), dc);
 
         bitmap.unwrap()
+    }
+}
+
+/// Using std::fs::canonicalize in Windows will convert to UNC path ("\\?\C:\\path\to\file.txt")
+/// Some applications do not support this for dropping as URI.
+fn adjust_canonicalization<P: AsRef<Path>>(p: P) -> PathBuf {
+    let p = p.as_ref().display().to_string();
+    if let Some(stripped) = p.strip_prefix(r"\\?\") {
+        PathBuf::from(stripped)
+    } else {
+        PathBuf::from(p)
     }
 }
