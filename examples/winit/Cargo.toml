@@ -1,0 +1,9 @@
+[package]
+name = "winit-app"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+drag = { path = "../../crates/drag" }
+winit = { version = "0.29", default-features = false, features = [ "rwh_05" ] }

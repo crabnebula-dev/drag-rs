@@ -25,6 +25,8 @@ pub enum Error {
 }
 
 /// Item to be dragged.
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum DragItem {
     /// A list of files to be dragged.
     ///
@@ -33,6 +35,8 @@ pub enum DragItem {
 }
 
 /// An image definition.
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum Image {
     /// A path to a image.
     File(PathBuf),

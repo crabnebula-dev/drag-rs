@@ -1,0 +1,9 @@
+[package]
+name = "wry-app"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+drag = { path = "../../crates/drag" }
+wry = "0.24"

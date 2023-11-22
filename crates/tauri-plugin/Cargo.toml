@@ -1,0 +1,13 @@
+[package]
+name = "tauri-plugin-drag"
+version = "0.0.0"
+authors = [ "CrabNebula Ltd." ]
+description = "Start a drag operation out of a Tauri window"
+edition = "2021"
+rust-version = "1.60"
+
+[dependencies]
+tauri = "1"
+serde = "1"
+thiserror = "1"
+drag = { path = "../drag", version = "0.0.0", features = [ "serde" ] }

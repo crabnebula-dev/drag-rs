@@ -1,0 +1,12 @@
+[package]
+name = "tauri-app"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[build-dependencies]
+tauri-build = "1"
+
+[dependencies]
+tauri = { version = "1", features = [ "path-all"] }
+tauri-plugin-drag = { path = "../../crates/tauri-plugin/" }
