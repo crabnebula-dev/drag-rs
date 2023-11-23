@@ -25,8 +25,9 @@ use windows::{
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
         UI::{
             Shell::{
-                CLSID_DragDropHelper, IDragSourceHelper, SHCreateDataObject, SHDoDragDrop,
-                DROPFILES, SHDRAGIMAGE,
+                BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
+                SHCreateDataObject, SHCreateShellItemArrayFromIDLists, SHDoDragDrop, DROPFILES,
+                SHDRAGIMAGE,
             },
             WindowsAndMessaging::{LoadImageW, IMAGE_BITMAP, LR_DEFAULTSIZE, LR_LOADFROMFILE},
         },
@@ -78,10 +79,12 @@ impl IDropSource_Impl for DropSource {
 }
 
 impl DataObject {
+    // This will be used for sharing text between applications
+    #[allow(dead_code)]
     fn new(files: Vec<PathBuf>) -> Self {
         unsafe {
             Self {
-                files: files.iter().map(adjust_canonicalization).collect(),
+                files,
                 inner_shell_obj: SHCreateDataObject(None, None, None).unwrap(),
             }
         }
@@ -196,11 +199,11 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         return Err(e.clone().into());
                     }
                 }
-                let data_object: IDataObject = DataObject::new(files).into();
+                let data_object: IDataObject = get_file_data_object(&files).unwrap();
                 let drop_source: IDropSource = DropSource::new().into();
 
                 unsafe {
-                    if let Some(drag_icon) = get_drag_icon_image(image) {
+                    if let Some(drag_icon) = get_shell_drag_image(image) {
                         if let Ok(helper) =
                             create_instance::<IDragSourceHelper>(&CLSID_DragDropHelper)
                         {
@@ -224,7 +227,7 @@ pub fn start_drag<W: HasRawWindowHandle>(
     }
 }
 
-fn get_drag_icon_image(image: Image) -> Option<SHDRAGIMAGE> {
+fn get_shell_drag_image(image: Image) -> Option<SHDRAGIMAGE> {
     let hbitmap = match image {
         // not supported
         Image::Raw(_bytes) => None,
@@ -236,7 +239,7 @@ fn get_drag_icon_image(image: Image) -> Option<SHDRAGIMAGE> {
                 HMODULE::default(),
                 PCWSTR::from_raw(wide_path.as_ptr()),
                 IMAGE_BITMAP,
-                0_i32,
+                0_i32, // read origin size
                 0_i32,
                 LR_DEFAULTSIZE | LR_LOADFROMFILE,
             ) {
@@ -367,5 +370,30 @@ fn adjust_canonicalization<P: AsRef<Path>>(p: P) -> PathBuf {
         PathBuf::from(stripped)
     } else {
         PathBuf::from(p)
+    }
+}
+
+fn get_file_data_object(paths: &[PathBuf]) -> Option<IDataObject> {
+    unsafe {
+        let shell_item_array = get_shell_item_array(paths).unwrap();
+        shell_item_array.BindToHandler(None, &BHID_DataObject).ok()
+    }
+}
+
+fn get_shell_item_array(paths: &[PathBuf]) -> Option<IShellItemArray> {
+    unsafe {
+        let list: Vec<*const Common::ITEMIDLIST> = paths
+            .iter()
+            .map(|path| get_file_item_id(path).cast_const())
+            .collect();
+        SHCreateShellItemArrayFromIDLists(&list).ok()
+    }
+}
+
+fn get_file_item_id(path: &Path) -> *mut Common::ITEMIDLIST {
+    unsafe {
+        let path = adjust_canonicalization(path);
+        let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
+        windows::Win32::UI::Shell::ILCreateFromPathW(PCWSTR::from_raw(wide_path.as_ptr()))
     }
 }
