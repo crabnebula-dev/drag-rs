@@ -1,0 +1,38 @@
+{
+  "gitSiteUrl": "https://github.com/crabnebula-dev/drag-rs/",
+  "pkgManagers": {
+    "javascript": {
+      "version": true,
+      "getPublishedVersion": {
+        "use": "fetch:check",
+        "options": {
+          "url": "https://registry.npmjs.com/${ pkg.pkg }/${ pkg.pkgFile.version }"
+        }
+      },
+      "publish": [
+        "npm publish --access public"
+      ]
+    },
+    "rust": {
+      "version": true,
+      "getPublishedVersion": "cargo search ${ pkg.pkg } --limit 1 | sed -nE 's/^[^\"]*\"//; s/\".*//1p' -",
+      "publish": [
+        "cargo publish"
+      ]
+    }
+  },
+  "packages": {
+    "@crabnebula/plugin-drag": {
+      "path": "./packages/tauri-plugin-api",
+      "manager": "javascript"
+    },
+    "drag": {
+      "path": "./crates/drag",
+      "manager": "rust"
+    },
+    "tauri-plugin-drag": {
+      "path": "./crates/tauri-plugin",
+      "manager": "rust"
+    }
+  }
+}
