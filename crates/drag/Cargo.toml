@@ -1,6 +1,6 @@
 [package]
 name = "drag"
-version = "0.0.0"
+version = "0.1.0"
 description = "Start a drag operation out of a window"
 edition = { workspace = true }
 
