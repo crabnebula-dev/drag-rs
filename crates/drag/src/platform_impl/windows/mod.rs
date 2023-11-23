@@ -3,24 +3,32 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use crate::{DragItem, Image};
 
 use std::{
-    ffi::{c_void, OsStr},
+    ffi::c_void,
+    iter::once,
     os::windows::ffi::OsStrExt,
+    path::{Path, PathBuf},
     sync::Once,
 };
 use windows::{
     core::*,
     Win32::{
         Foundation::*,
+        Graphics::Gdi::{GetObjectW, BITMAP},
         System::Com::*,
         System::Memory::*,
         System::Ole::OleInitialize,
-        System::Ole::{
-            DoDragDrop, IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY,
-        },
+        System::Ole::{IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY},
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
-        UI::Shell::DROPFILES,
+        UI::Shell::{
+            BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
+            SHCreateDataObject, SHCreateShellItemArrayFromIDLists, SHDoDragDrop, DROPFILES,
+            SHDRAGIMAGE,
+        },
     },
 };
+
+mod image;
+mod utils;
 
 static mut OLE_RESULT: Result<()> = Ok(());
 static OLE_UNINITIALIZE: Once = Once::new();
@@ -35,8 +43,10 @@ fn init_ole() {
 }
 
 #[implement(IDataObject)]
-#[derive(Clone)]
-struct DataObject(HGLOBAL);
+struct DataObject {
+    files: Vec<PathBuf>,
+    inner_shell_obj: IDataObject,
+}
 
 #[implement(IDropSource)]
 struct DropSource(());
@@ -64,12 +74,16 @@ impl IDropSource_Impl for DropSource {
     }
 }
 
-#[implement()]
-struct DummyRelease;
-
 impl DataObject {
-    fn new(handle: HGLOBAL) -> Self {
-        Self(handle)
+    // This will be used for sharing text between applications
+    #[allow(dead_code)]
+    fn new(files: Vec<PathBuf>) -> Self {
+        unsafe {
+            Self {
+                files,
+                inner_shell_obj: SHCreateDataObject(None, None, None).unwrap(),
+            }
+        }
     }
 
     fn is_supported_format(pformatetc: *const FORMATETC) -> bool {
@@ -81,19 +95,35 @@ impl DataObject {
             false
         }
     }
+
+    fn clone_drop_hglobal(&self) -> Result<HGLOBAL> {
+        let mut buffer = Vec::new();
+        for path in &self.files {
+            let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
+            buffer.extend(wide_path);
+        }
+        buffer.push(0);
+        let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
+        let handle = get_hglobal(size, buffer)?;
+        Ok(handle)
+    }
 }
 
 #[allow(non_snake_case)]
 impl IDataObject_Impl for DataObject {
     fn GetData(&self, pformatetc: *const FORMATETC) -> Result<STGMEDIUM> {
-        if Self::is_supported_format(pformatetc) {
-            Ok(STGMEDIUM {
-                tymed: TYMED_HGLOBAL.0 as u32,
-                u: STGMEDIUM_0 { hGlobal: self.0 },
-                pUnkForRelease: std::mem::ManuallyDrop::new(Some(DummyRelease.into())),
-            })
-        } else {
-            Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
+        unsafe {
+            if Self::is_supported_format(pformatetc) {
+                Ok(STGMEDIUM {
+                    tymed: TYMED_HGLOBAL.0 as u32,
+                    u: STGMEDIUM_0 {
+                        hGlobal: self.clone_drop_hglobal()?,
+                    },
+                    pUnkForRelease: std::mem::ManuallyDrop::new(None),
+                })
+            } else {
+                self.inner_shell_obj.GetData(pformatetc)
+            }
         }
     }
 
@@ -102,10 +132,12 @@ impl IDataObject_Impl for DataObject {
     }
 
     fn QueryGetData(&self, pformatetc: *const FORMATETC) -> HRESULT {
-        if Self::is_supported_format(pformatetc) {
-            S_OK
-        } else {
-            DV_E_FORMATETC
+        unsafe {
+            if Self::is_supported_format(pformatetc) {
+                S_OK
+            } else {
+                self.inner_shell_obj.QueryGetData(pformatetc)
+            }
         }
     }
 
@@ -120,11 +152,11 @@ impl IDataObject_Impl for DataObject {
 
     fn SetData(
         &self,
-        _pformatetc: *const FORMATETC,
-        _pmedium: *const STGMEDIUM,
-        _frelease: BOOL,
+        pformatetc: *const FORMATETC,
+        pmedium: *const STGMEDIUM,
+        frelease: BOOL,
     ) -> Result<()> {
-        Err(Error::new(E_NOTIMPL, HSTRING::new()))
+        unsafe { self.inner_shell_obj.SetData(pformatetc, pmedium, frelease) }
     }
 
     fn EnumFormatEtc(&self, _dwdirection: u32) -> Result<IEnumFORMATETC> {
@@ -149,16 +181,10 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
-impl Drop for DataObject {
-    fn drop(&mut self) {
-        let _ = unsafe { GlobalFree(self.0) };
-    }
-}
-
 pub fn start_drag<W: HasRawWindowHandle>(
     handle: &W,
     item: DragItem,
-    _image: Image,
+    image: Image,
 ) -> crate::Result<()> {
     if let RawWindowHandle::Win32(_w) = handle.raw_window_handle() {
         match item {
@@ -169,26 +195,25 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         return Err(e.clone().into());
                     }
                 }
-                let mut buffer = Vec::new();
-                for path in files {
-                    let path = OsStr::new(&path);
-                    for code in path.encode_wide() {
-                        buffer.push(code);
-                    }
-                    buffer.push(0);
-                }
-
-                // We finish with a double null.
-                buffer.push(0);
-
-                let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
-                let handle = get_hglobal(size, buffer)?;
-                let data_object: IDataObject = DataObject::new(handle).into();
+                let data_object: IDataObject = get_file_data_object(&files).unwrap();
                 let drop_source: IDropSource = DropSource::new().into();
 
-                let mut effect = DROPEFFECT(0);
-                let _ =
-                    unsafe { DoDragDrop(&data_object, &drop_source, DROPEFFECT_COPY, &mut effect) };
+                unsafe {
+                    if let Some(drag_image) = get_drag_image(image) {
+                        if let Ok(helper) =
+                            create_instance::<IDragSourceHelper>(&CLSID_DragDropHelper)
+                        {
+                            let _ = helper.InitializeFromBitmap(&drag_image, &data_object);
+                        }
+                    }
+
+                    let _ = SHDoDragDrop(
+                        HWND(_w.hwnd as isize),
+                        &data_object,
+                        &drop_source,
+                        DROPEFFECT_COPY,
+                    );
+                };
             }
         }
 
@@ -196,6 +221,37 @@ pub fn start_drag<W: HasRawWindowHandle>(
     } else {
         Err(crate::Error::UnsupportedWindowHandle)
     }
+}
+
+fn get_drag_image(image: Image) -> Option<SHDRAGIMAGE> {
+    let hbitmap = match image {
+        Image::Raw(bytes) => image::read_bytes_to_hbitmap(&bytes).ok(),
+        Image::File(path) => image::read_path_to_hbitmap(&path).ok(),
+    };
+    hbitmap.map(|hbitmap| unsafe {
+        // get image size
+        let mut bitmap: BITMAP = BITMAP::default();
+        let (width, height) = if 0
+            == GetObjectW(
+                hbitmap,
+                std::mem::size_of::<BITMAP>() as i32,
+                Some(&mut bitmap as *mut BITMAP as *mut c_void),
+            ) {
+            (128, 128)
+        } else {
+            (bitmap.bmWidth, bitmap.bmHeight)
+        };
+
+        SHDRAGIMAGE {
+            sizeDragImage: SIZE {
+                cx: width,
+                cy: height,
+            },
+            ptOffset: POINT { x: 0, y: 0 },
+            hbmpDragImage: hbitmap,
+            crColorKey: COLORREF(0x00000000),
+        }
+    })
 }
 
 fn get_hglobal(size: usize, buffer: Vec<u16>) -> Result<HGLOBAL> {
@@ -214,4 +270,33 @@ fn get_hglobal(size: usize, buffer: Vec<u16>) -> Result<HGLOBAL> {
         GlobalUnlock(handle)
     }?;
     Ok(handle)
+}
+
+pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> windows::core::Result<T> {
+    unsafe { CoCreateInstance(clsid, None, CLSCTX_ALL) }
+}
+
+fn get_file_data_object(paths: &[PathBuf]) -> Option<IDataObject> {
+    unsafe {
+        let shell_item_array = get_shell_item_array(paths).unwrap();
+        shell_item_array.BindToHandler(None, &BHID_DataObject).ok()
+    }
+}
+
+fn get_shell_item_array(paths: &[PathBuf]) -> Option<IShellItemArray> {
+    unsafe {
+        let list: Vec<*const Common::ITEMIDLIST> = paths
+            .iter()
+            .map(|path| get_file_item_id(path).cast_const())
+            .collect();
+        SHCreateShellItemArrayFromIDLists(&list).ok()
+    }
+}
+
+fn get_file_item_id(path: &Path) -> *mut Common::ITEMIDLIST {
+    unsafe {
+        let path = utils::adjust_canonicalization(path);
+        let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
+        windows::Win32::UI::Shell::ILCreateFromPathW(PCWSTR::from_raw(wide_path.as_ptr()))
+    }
 }
