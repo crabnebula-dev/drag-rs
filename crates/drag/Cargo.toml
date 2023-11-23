@@ -9,6 +9,12 @@ raw-window-handle = "0.5"
 thiserror = "1"
 serde = { version = "1", optional = true }
 
+[dev-dependencies]
+tao = "0.16"
+winit = "0.29"
+wry = "0.24"
+tauri = "1"
+
 [target."cfg(target_os = \"macos\")".dependencies]
 cocoa = "0.25"
 objc = "0.2"
