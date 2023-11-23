@@ -8,7 +8,8 @@
     "bundle": {
       "identifier": "dev.crabnebula.drag",
       "icon": [
-        "../icon.png"
+        "../icon.png",
+        "../icon.ico"
       ],
       "resources": ["../icon.png"]
     },
