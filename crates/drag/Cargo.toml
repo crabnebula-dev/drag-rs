@@ -30,7 +30,8 @@ features = [
     "Win32_System_SystemServices",
     "Win32_UI_Shell",
     "Win32_UI_Shell_Common",
-    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Imaging",
+    "Win32_Graphics_Gdi",
 ]
 
 [features]

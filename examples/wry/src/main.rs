@@ -116,7 +116,7 @@ fn main() -> wry::Result<()> {
                             std::fs::canonicalize("../icon.bmp").unwrap(),
                         ]),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
-                        // Image::File("../icon.bmp".into()),
+                        // Image::File("../icon.png".into()),
                     )
                     .unwrap();
                 }

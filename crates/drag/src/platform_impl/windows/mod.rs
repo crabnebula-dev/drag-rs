@@ -5,7 +5,6 @@ use crate::{DragItem, Image};
 use std::{
     ffi::c_void,
     iter::once,
-    mem::size_of,
     os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
     sync::Once,
@@ -14,25 +13,22 @@ use windows::{
     core::*,
     Win32::{
         Foundation::*,
-        Graphics::Gdi::{
-            CreateDIBSection, GetDC, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
-            DIB_RGB_COLORS, HBITMAP,
-        },
+        Graphics::Gdi::{GetObjectW, BITMAP},
         System::Com::*,
         System::Memory::*,
         System::Ole::OleInitialize,
         System::Ole::{IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY},
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
-        UI::{
-            Shell::{
-                BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
-                SHCreateDataObject, SHCreateShellItemArrayFromIDLists, SHDoDragDrop, DROPFILES,
-                SHDRAGIMAGE,
-            },
-            WindowsAndMessaging::{LoadImageW, IMAGE_BITMAP, LR_DEFAULTSIZE, LR_LOADFROMFILE},
+        UI::Shell::{
+            BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
+            SHCreateDataObject, SHCreateShellItemArrayFromIDLists, SHDoDragDrop, DROPFILES,
+            SHDRAGIMAGE,
         },
     },
 };
+
+mod image;
+mod utils;
 
 static mut OLE_RESULT: Result<()> = Ok(());
 static OLE_UNINITIALIZE: Once = Once::new();
@@ -203,11 +199,11 @@ pub fn start_drag<W: HasRawWindowHandle>(
                 let drop_source: IDropSource = DropSource::new().into();
 
                 unsafe {
-                    if let Some(drag_icon) = get_shell_drag_image(image) {
+                    if let Some(drag_image) = get_drag_image(image) {
                         if let Ok(helper) =
                             create_instance::<IDragSourceHelper>(&CLSID_DragDropHelper)
                         {
-                            let _ = helper.InitializeFromBitmap(&drag_icon, &data_object);
+                            let _ = helper.InitializeFromBitmap(&drag_image, &data_object);
                         }
                     }
 
@@ -227,30 +223,15 @@ pub fn start_drag<W: HasRawWindowHandle>(
     }
 }
 
-fn get_shell_drag_image(image: Image) -> Option<SHDRAGIMAGE> {
+fn get_drag_image(image: Image) -> Option<SHDRAGIMAGE> {
     let hbitmap = match image {
-        // not supported
-        Image::Raw(_bytes) => None,
-        // only support BITMAP file
-        Image::File(path) => unsafe {
-            let path = adjust_canonicalization(path);
-            let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
-            match LoadImageW(
-                HMODULE::default(),
-                PCWSTR::from_raw(wide_path.as_ptr()),
-                IMAGE_BITMAP,
-                0_i32, // read origin size
-                0_i32,
-                LR_DEFAULTSIZE | LR_LOADFROMFILE,
-            ) {
-                Ok(handle) => Some(HBITMAP(handle.0)),
-                Err(_) => None,
-            }
-        },
+        Image::Raw(bytes) => image::read_bytes_to_hbitmap(&bytes).ok(),
+        Image::File(path) => image::read_path_to_hbitmap(&path).ok(),
     };
     hbitmap.map(|hbitmap| unsafe {
+        // get image size
         let mut bitmap: BITMAP = BITMAP::default();
-        let (cx, cy) = if 0
+        let (width, height) = if 0
             == GetObjectW(
                 hbitmap,
                 std::mem::size_of::<BITMAP>() as i32,
@@ -260,11 +241,15 @@ fn get_shell_drag_image(image: Image) -> Option<SHDRAGIMAGE> {
         } else {
             (bitmap.bmWidth, bitmap.bmHeight)
         };
+
         SHDRAGIMAGE {
-            sizeDragImage: SIZE { cx, cy },
+            sizeDragImage: SIZE {
+                cx: width,
+                cy: height,
+            },
             ptOffset: POINT { x: 0, y: 0 },
             hbmpDragImage: hbitmap,
-            crColorKey: COLORREF(0xFFFFFFFF),
+            crColorKey: COLORREF(0x00000000),
         }
     })
 }
@@ -291,88 +276,6 @@ pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> windows::co
     unsafe { CoCreateInstance(clsid, None, CLSCTX_ALL) }
 }
 
-// FIXME: incomplete
-#[allow(dead_code)]
-pub fn create_dragimage_bitmap(image: Vec<u8>) -> HBITMAP {
-    let width = 512;
-    let height = 512;
-    let bitmap = BITMAPINFO {
-        bmiHeader: BITMAPINFOHEADER {
-            biSize: size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: width,
-            biHeight: height,
-            biPlanes: 1,
-            biBitCount: 32,
-            biCompression: 0_u32,
-            biSizeImage: (width * height * 4) as u32,
-            biXPelsPerMeter: 0,
-            biYPelsPerMeter: 0,
-            biClrUsed: 0,
-            biClrImportant: 0,
-        },
-        bmiColors: Default::default(),
-    };
-
-    unsafe {
-        let dc = GetDC(HWND(0));
-
-        let mut ptr = std::ptr::null_mut();
-
-        let bitmap = CreateDIBSection(
-            dc,
-            &bitmap as *const _,
-            DIB_RGB_COLORS,
-            &mut ptr as *mut *mut _,
-            HANDLE(0),
-            0,
-        );
-
-        // Bitmap needs to be flipped and unpremultiplied
-
-        let dst_stride = (width * 4) as isize;
-        let ptr = ptr as *mut u8;
-        for y in 0..height as isize {
-            let src_line = image.as_ptr().offset(y * 256_isize);
-
-            let dst_line = ptr.offset(y * dst_stride);
-
-            for x in (0..dst_stride).step_by(4) {
-                let (r, g, b, a) = (
-                    *src_line.offset(x) as i32,
-                    *src_line.offset(x + 1) as i32,
-                    *src_line.offset(x + 2) as i32,
-                    *src_line.offset(x + 3) as i32,
-                );
-
-                let (r, g, b) = if a == 0 {
-                    (0, 0, 0)
-                } else {
-                    (r * 255 / a, g * 255 / a, b * 255 / a)
-                };
-                *dst_line.offset(x) = b as u8;
-                *dst_line.offset(x + 1) = g as u8;
-                *dst_line.offset(x + 2) = r as u8;
-                *dst_line.offset(x + 3) = a as u8;
-            }
-        }
-
-        ReleaseDC(HWND(0), dc);
-
-        bitmap.unwrap()
-    }
-}
-
-/// Using std::fs::canonicalize on Windows will retuen a UNC path ("\\?\C:\\path\to\file.txt")
-/// Some applications do not support this for dropping as URI.
-fn adjust_canonicalization<P: AsRef<Path>>(p: P) -> PathBuf {
-    let p = p.as_ref().display().to_string();
-    if let Some(stripped) = p.strip_prefix(r"\\?\") {
-        PathBuf::from(stripped)
-    } else {
-        PathBuf::from(p)
-    }
-}
-
 fn get_file_data_object(paths: &[PathBuf]) -> Option<IDataObject> {
     unsafe {
         let shell_item_array = get_shell_item_array(paths).unwrap();
@@ -392,7 +295,7 @@ fn get_shell_item_array(paths: &[PathBuf]) -> Option<IShellItemArray> {
 
 fn get_file_item_id(path: &Path) -> *mut Common::ITEMIDLIST {
     unsafe {
-        let path = adjust_canonicalization(path);
+        let path = utils::adjust_canonicalization(path);
         let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
         windows::Win32::UI::Shell::ILCreateFromPathW(PCWSTR::from_raw(wide_path.as_ptr()))
     }
