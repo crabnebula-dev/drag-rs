@@ -11,14 +11,6 @@ use wry::application::{
 };
 use wry::webview::WebViewBuilder;
 
-#[cfg(not(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "android"
-)))]
-use tao::platform::unix::WindowExtUnix;
-
 enum UserEvent {
     StartDrag,
 }
@@ -91,32 +83,20 @@ fn main() -> wry::Result<()> {
 
             Event::UserEvent(e) => match e {
                 UserEvent::StartDrag => {
-                    let window = webview.window();
-
-                    #[cfg(any(
-                        target_os = "windows",
-                        target_os = "macos",
-                        target_os = "ios",
-                        target_os = "android"
-                    ))]
-                    let window = &window;
-
-                    #[cfg(not(any(
-                        target_os = "windows",
-                        target_os = "macos",
-                        target_os = "ios",
-                        target_os = "android"
-                    )))]
-                    let window = window.gtk_window();
-
                     start_drag(
-                        window,
+                        #[cfg(target_os = "linux")]
+                        {
+                            use wry::application::platform::unix::WindowExtUnix;
+                            webview.window().gtk_window()
+                        },
+                        #[cfg(not(target_os = "linux"))]
+                        &webview.window(),
                         DragItem::Files(vec![
-                            std::fs::canonicalize("../icon.png").unwrap(),
-                            std::fs::canonicalize("../icon.bmp").unwrap(),
+                            std::fs::canonicalize("./examples/icon.png").unwrap(),
+                            std::fs::canonicalize("./examples/icon.bmp").unwrap(),
                         ]),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
-                        // Image::File("../icon.png".into()),
+                        // Image::File("../../icon.png".into()),
                     )
                     .unwrap();
                 }
