@@ -1,0 +1,18 @@
+SPDXVersion: SPDX-2.1
+DataLicense: CC0-1.0
+PackageName: drag-rs
+DataFormat: SPDXRef-1
+PackageSupplier: Organization: CrabNebula Ltd.
+PackageHomePage: https://github.com/crabnebula-dev/drag-rs
+PackageLicenseDeclared: Apache-2.0
+PackageLicenseDeclared: MIT
+PackageCopyrightText: 2023-2023, CrabNebula Ltd.
+PackageSummary: <text>Start a drag operation out of a window on macOS, Windows and Linux (via GTK).
+                </text>
+PackageComment: <text>The package includes the following libraries; see
+Relationship information.
+                </text>
+Created: 2023-11-28T09:00:00Z
+PackageDownloadLocation: git://github.com/crabnebula-dev/drag-rs
+PackageDownloadLocation: git+https://github.com/crabnebula-dev/drag-rs.git
+PackageDownloadLocation: git+ssh://github.com/crabnebula-dev/drag-rs.git

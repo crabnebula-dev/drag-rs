@@ -65,7 +65,7 @@ There's two ways to consume this crate API: from Rust code via the `drag` crate 
   );
   ```
 
-  - winit: 
+  - winit:
   ```rust
   let event_loop = winit::event_loop::EventLoop::new().unwrap();
   let window = winit::window::WindowBuilder::new().build(&event_loop).unwrap();
@@ -134,3 +134,7 @@ Running the examples:
 ```sh
 cargo run --bin [tauri-app|winit-app|tao-app|wry-app]
 ```
+
+## Licenses
+
+MIT or MIT/Apache 2.0 where applicable.
