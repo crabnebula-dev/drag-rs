@@ -1,3 +1,7 @@
+// Copyright 2023-2023 CrabNebula Ltd.
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
+
 use std::path::{Path, PathBuf};
 
 /// Using std::fs::canonicalize on Windows will retuen a UNC path ("\\?\C:\\path\to\file.txt")

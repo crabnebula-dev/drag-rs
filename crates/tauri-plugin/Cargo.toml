@@ -5,6 +5,7 @@ authors = [ "CrabNebula Ltd." ]
 description = "Start a drag operation out of a Tauri window"
 edition = "2021"
 rust-version = "1.60"
+license = { workspace = true }
 
 [dependencies]
 tauri = "1"

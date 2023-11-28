@@ -1,3 +1,7 @@
+// Copyright 2023-2023 CrabNebula Ltd.
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
+
 //!Start a drag operation out of a window on macOS, Windows and Linux (via GTK).
 //!
 //! Tested for [tao](https://github.com/tauri-apps/tao) (latest),
