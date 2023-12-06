@@ -4,7 +4,7 @@
 
 #![cfg(not(target_os = "linux"))]
 
-use drag::{start_drag, DragItem, Image};
+use drag::{start_drag, DragItem, DropResult, Image};
 use winit::{
     dpi::LogicalSize,
     event::{DeviceEvent, ElementState, Event, StartCause, WindowEvent},
@@ -46,6 +46,9 @@ fn main() {
                         ),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("../../icon.png".into()),
+                        Some(Box::new(|result: DropResult| {
+                            println!("--> Drop Result: [{:?}]", result);
+                        })),
                     )
                     .unwrap();
                 }

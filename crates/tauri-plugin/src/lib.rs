@@ -4,6 +4,7 @@
 
 use std::sync::mpsc::channel;
 
+use drag::DropResult;
 use serde::{ser::Serializer, Serialize};
 use tauri::{
     command,
@@ -46,7 +47,15 @@ async fn start_drag<R: Runtime>(
         let raw_window = tauri::Result::Ok(window);
 
         let r = match raw_window {
-            Ok(w) => drag::start_drag(&w, item, image).map_err(Into::into),
+            Ok(w) => drag::start_drag(
+                &w,
+                item,
+                image,
+                Some(Box::new(|result: DropResult| {
+                    println!("--> Drop Result: [{:?}]", result);
+                })),
+            )
+            .map_err(Into::into),
             Err(e) => Err(e.into()),
         };
         tx.send(r).unwrap();

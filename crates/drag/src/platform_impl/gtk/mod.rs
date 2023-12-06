@@ -2,8 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use crate::{DragItem, Image};
-use gdkx11::gdk;
+use std::{
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
+use crate::{DragItem, DropResult, Image};
+use gdkx11::{
+    gdk,
+    glib::{ObjectExt, SignalHandlerId},
+};
 use gtk::{
     gdk_pixbuf,
     prelude::{DragContextExtManual, PixbufLoaderExt, WidgetExt, WidgetExtManual},
@@ -13,27 +21,28 @@ pub fn start_drag(
     window: &gtk::ApplicationWindow,
     item: DragItem,
     image: Image,
+    on_drop_callback: Option<Box<dyn Fn(DropResult) + Send>>,
 ) -> crate::Result<()> {
+    let handler_ids: Arc<Mutex<Vec<SignalHandlerId>>> = Arc::new(Mutex::new(vec![]));
+
     window.drag_source_set(gdk::ModifierType::BUTTON1_MASK, &[], gdk::DragAction::COPY);
 
     match item {
         DragItem::Files(paths) => {
             window.drag_source_add_uri_targets();
-
-            window.connect_drag_data_get(move |_, _, data, _, _| {
-                let uris: Vec<String> = paths
-                    .iter()
-                    .map(|path| format!("file://{}", path.display()))
-                    .collect();
-                let uris: Vec<&str> = uris.iter().map(|s| s.as_str()).collect();
-                data.set_uris(&uris);
-            });
+            handler_ids
+                .lock()
+                .unwrap()
+                .push(window.connect_drag_data_get(move |_, _, data, _, _| {
+                    let uris: Vec<String> = paths
+                        .iter()
+                        .map(|path| format!("file://{}", path.display()))
+                        .collect();
+                    let uris: Vec<&str> = uris.iter().map(|s| s.as_str()).collect();
+                    data.set_uris(&uris);
+                }));
         }
     }
-
-    window.connect_drag_end(|this, _| {
-        this.drag_source_unset();
-    });
 
     if let Some(target_list) = &window.drag_source_get_target_list() {
         if let Some(drag_context) = window.drag_begin_with_coordinates(
@@ -44,6 +53,10 @@ pub fn start_drag(
             -1,
             -1,
         ) {
+            let callback = on_drop_callback.map(Rc::new);
+            on_drop_cancel(&callback, window, &handler_ids, &drag_context);
+            on_drop_performed(&callback, window, &handler_ids, &drag_context);
+
             let icon_pixbuf: Option<gdk_pixbuf::Pixbuf> = match &image {
                 Image::Raw(data) => image_binary_to_pixbuf(data),
                 Image::File(path) => match std::fs::read(path) {
@@ -72,4 +85,53 @@ fn image_binary_to_pixbuf(data: &[u8]) -> Option<gdk_pixbuf::Pixbuf> {
         .map_err(|_| ())
         .and_then(|_| loader.pixbuf().ok_or(()))
         .ok()
+}
+
+fn clear_signal_handlers(window: &gtk::ApplicationWindow, handler_ids: &mut Vec<SignalHandlerId>) {
+    for handler_id in handler_ids.drain(..) {
+        println!("disconnecting handler {:?}", handler_id);
+        window.disconnect(handler_id);
+    }
+}
+
+fn on_drop_cancel(
+    callback: &Option<Rc<Box<dyn Fn(DropResult) + Send>>>,
+    window: &gtk::ApplicationWindow,
+    handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
+    drag_context: &gdk::DragContext,
+) {
+    let callback = callback.as_ref().cloned();
+    let window = window.clone();
+    let handler_ids = handler_ids.clone();
+
+    drag_context.connect_cancel(move |_, _| {
+        let handler_ids = &mut handler_ids.lock().unwrap();
+        clear_signal_handlers(&window, handler_ids);
+        window.drag_source_unset();
+
+        if let Some(callback) = &callback {
+            callback(DropResult::Cancel);
+        }
+    });
+}
+
+fn on_drop_performed(
+    callback: &Option<Rc<Box<dyn Fn(DropResult) + Send>>>,
+    window: &gtk::ApplicationWindow,
+    handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
+    drag_context: &gdk::DragContext,
+) {
+    let callback = callback.as_ref().cloned();
+    let window = window.clone();
+    let handler_ids = handler_ids.clone();
+
+    drag_context.connect_drop_performed(move |_, _| {
+        let handler_ids = &mut handler_ids.lock().unwrap();
+        clear_signal_handlers(&window, handler_ids);
+        window.drag_source_unset();
+
+        if let Some(callback) = &callback {
+            callback(DropResult::Dropped);
+        }
+    });
 }

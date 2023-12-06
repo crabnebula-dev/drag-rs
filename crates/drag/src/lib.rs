@@ -96,6 +96,15 @@ pub enum Error {
     #[cfg(target_os = "linux")]
     #[error("empty drag target list")]
     EmptyTargetList,
+    #[error("failed to drop items")]
+    FailedToDrop,
+}
+
+#[cfg_attr(feature = "serde", derive(Debug, serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(untagged))]
+pub enum DropResult {
+    Dropped,
+    Cancel,
 }
 
 /// Item to be dragged.
