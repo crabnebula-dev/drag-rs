@@ -46,6 +46,9 @@ pub fn start_drag<W: HasRawWindowHandle>(
             let img: id = msg_send![class!(NSImage), alloc];
             let img: id = match image {
                 Image::File(path) => {
+                    if !path.exists() {
+                        return Err(crate::Error::ImageNotFound);
+                    }
                     NSImage::initByReferencingFile_(img, new_nsstring(&path.to_string_lossy()))
                 }
                 Image::Raw(bytes) => {
