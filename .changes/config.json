@@ -36,7 +36,8 @@
     },
     "tauri-plugin-drag": {
       "path": "./crates/tauri-plugin",
-      "manager": "rust"
+      "manager": "rust",
+      "dependencies": ["drag"]
     }
   }
 }
