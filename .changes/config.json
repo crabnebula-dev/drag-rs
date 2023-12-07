@@ -16,13 +16,17 @@
     "rust": {
       "version": true,
       "getPublishedVersion": "cargo search ${ pkg.pkg } --limit 1 | sed -nE 's/^[^\"]*\"//; s/\".*//1p' -",
+      "prepublish": [
+        "sudo apt-get update",
+        "sudo apt-get install -y webkit2gtk-4.0"
+      ],
       "publish": [
         "cargo publish"
       ]
     }
   },
   "packages": {
-    "@crabnebula/plugin-drag": {
+    "@crabnebula/tauri-plugin-drag": {
       "path": "./packages/tauri-plugin-api",
       "manager": "javascript"
     },
@@ -32,7 +36,8 @@
     },
     "tauri-plugin-drag": {
       "path": "./crates/tauri-plugin",
-      "manager": "rust"
+      "manager": "rust",
+      "dependencies": ["drag"]
     }
   }
 }

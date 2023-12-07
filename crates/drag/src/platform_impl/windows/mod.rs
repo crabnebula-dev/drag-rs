@@ -31,7 +31,6 @@ use windows::{
 };
 
 mod image;
-mod utils;
 
 static mut OLE_RESULT: Result<()> = Ok(());
 static OLE_UNINITIALIZE: Once = Once::new();
@@ -199,7 +198,13 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         return Err(e.clone().into());
                     }
                 }
-                let data_object: IDataObject = get_file_data_object(&files).unwrap();
+
+                let mut paths = Vec::new();
+                for f in files {
+                    paths.push(dunce::canonicalize(f)?);
+                }
+
+                let data_object: IDataObject = get_file_data_object(&paths).unwrap();
                 let drop_source: IDropSource = DropSource::new().into();
 
                 unsafe {
@@ -286,7 +291,7 @@ fn get_hglobal(size: usize, buffer: Vec<u16>) -> Result<HGLOBAL> {
     Ok(handle)
 }
 
-pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> windows::core::Result<T> {
+pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> Result<T> {
     unsafe { CoCreateInstance(clsid, None, CLSCTX_ALL) }
 }
 
@@ -309,7 +314,6 @@ fn get_shell_item_array(paths: &[PathBuf]) -> Option<IShellItemArray> {
 
 fn get_file_item_id(path: &Path) -> *mut Common::ITEMIDLIST {
     unsafe {
-        let path = utils::adjust_canonicalization(path);
         let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
         windows::Win32::UI::Shell::ILCreateFromPathW(PCWSTR::from_raw(wide_path.as_ptr()))
     }

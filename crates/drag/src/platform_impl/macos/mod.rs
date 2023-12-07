@@ -49,6 +49,9 @@ pub fn start_drag<W: HasRawWindowHandle>(
             let img: id = msg_send![class!(NSImage), alloc];
             let img: id = match image {
                 Image::File(path) => {
+                    if !path.exists() {
+                        return Err(crate::Error::ImageNotFound);
+                    }
                     NSImage::initByReferencingFile_(img, new_nsstring(&path.to_string_lossy()))
                 }
                 Image::Raw(bytes) => {
@@ -77,7 +80,6 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         let nsurl: id = msg_send![class!(NSURL), fileURLWithPath: new_nsstring(&path.display().to_string()) isDirectory: false];
                         let drag_item: id = msg_send![class!(NSDraggingItem), alloc];
                         let item: id = msg_send![drag_item, initWithPasteboardWriter: nsurl];
-                        let _: () = msg_send![item, autorelease];
 
                         let _: () = msg_send![item, setDraggingFrame: image_rect contents: img];
 

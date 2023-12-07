@@ -51,7 +51,7 @@ fn main() {
                     &window,
                     DragItem::Files(vec![std::fs::canonicalize("./examples/icon.png").unwrap()]),
                     Image::Raw(include_bytes!("../../icon.png").to_vec()),
-                    // Image::File("../../icon.png".into()),
+                    // Image::File("./examples/icon.png".into()),
                     Some(Box::new(|result: DropResult| {
                         println!("--> Drop Result: [{:?}]", result);
                     })),
