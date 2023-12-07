@@ -89,6 +89,8 @@ pub enum Error {
     #[cfg(windows)]
     #[error("{0}")]
     WindowsError(#[from] windows::core::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
     #[error("unsupported window handle")]
     UnsupportedWindowHandle,
     #[error("failed to start drag")]

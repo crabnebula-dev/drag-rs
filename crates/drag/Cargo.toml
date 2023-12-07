@@ -25,6 +25,9 @@ objc = "0.2"
 gtk = "0.15"
 gdkx11 = "0.15"
 
+[target."cfg(target_os = \"windows\")".dependencies]
+dunce = "1"
+
 [target."cfg(target_os = \"windows\")".dependencies.windows]
 version = "0.51"
 features = [
