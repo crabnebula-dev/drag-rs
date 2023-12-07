@@ -1,5 +1,5 @@
 ---
-"@crabnebula/plugin-drag": minor
+"@crabnebula/tauri-plugin-drag": minor
 "drag": minor
 "tauri-plugin-drag": minor
 ---

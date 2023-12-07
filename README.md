@@ -97,14 +97,14 @@ There's two ways to consume this crate API: from Rust code via the `drag` crate 
 
 `$ cargo add tauri-plugin-drag`
 
-- Install the `@crabnebula/plugin-drag` NPM package containing the API bindings:
+- Install the `@crabnebula/tauri-plugin-drag` NPM package containing the API bindings:
 
 ```sh
-pnpm add @crabnebula/plugin-drag
+pnpm add @crabnebula/tauri-plugin-drag
 # or
-npm add @crabnebula/plugin-drag
+npm add @crabnebula/tauri-plugin-drag
 # or
-yarn add @crabnebula/plugin-drag
+yarn add @crabnebula/tauri-plugin-drag
 ```
 
 - Register the core plugin with Tauri:
@@ -123,7 +123,7 @@ fn main() {
 - Afterwards all the plugin's APIs are available through the JavaScript guest bindings:
 
 ```javascript
-import { startDrag } from "@crabnebula/plugin-drag";
+import { startDrag } from "@crabnebula/tauri-plugin-drag";
 startDrag({ item: ['/path/to/drag/file'], icon: '/path/to/icon/image' })
 ```
 
