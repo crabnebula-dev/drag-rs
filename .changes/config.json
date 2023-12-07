@@ -22,7 +22,7 @@
     }
   },
   "packages": {
-    "@crabnebula/plugin-drag": {
+    "@crabnebula/tauri-plugin-drag": {
       "path": "./packages/tauri-plugin-api",
       "manager": "javascript"
     },
