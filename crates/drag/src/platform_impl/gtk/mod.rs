@@ -89,7 +89,6 @@ fn image_binary_to_pixbuf(data: &[u8]) -> Option<gdk_pixbuf::Pixbuf> {
 
 fn clear_signal_handlers(window: &gtk::ApplicationWindow, handler_ids: &mut Vec<SignalHandlerId>) {
     for handler_id in handler_ids.drain(..) {
-        println!("disconnecting handler {:?}", handler_id);
         window.disconnect(handler_id);
     }
 }
