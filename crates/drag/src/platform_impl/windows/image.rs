@@ -4,6 +4,8 @@
 
 use std::os::windows::ffi::OsStrExt;
 use std::{ffi::c_void, iter::once, path::Path};
+use windows::core::PCWSTR;
+use windows::Win32::Foundation::*;
 use windows::Win32::{
     Graphics::{
         Gdi::{CreateBitmap, HBITMAP},
@@ -14,9 +16,8 @@ use windows::Win32::{
     },
     System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
 };
-use windows::{core::*, Win32::Foundation::*};
 
-use super::utils::adjust_canonicalization;
+use crate::Result;
 
 pub(crate) fn read_bytes_to_hbitmap(bytes: &[u8]) -> Result<HBITMAP> {
     unsafe {
@@ -41,7 +42,7 @@ pub(crate) fn read_path_to_hbitmap(path: &Path) -> Result<HBITMAP> {
         let factory: IWICImagingFactory =
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
 
-        let path = adjust_canonicalization(path);
+        let path = dunce::canonicalize(path)?;
         let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
 
         let decoder = factory.CreateDecoderFromFilename(

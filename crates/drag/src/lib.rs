@@ -23,7 +23,7 @@
 //!   let window = tao::window::WindowBuilder::new().build(&event_loop).unwrap();
 //!
 //!   let item = drag::DragItem::Files(vec![std::fs::canonicalize("./examples/icon.png").unwrap()]);
-//!   let preview_icon = drag::Image::File("../../icon.png".into());
+//!   let preview_icon = drag::Image::File("./examples/icon.png".into());
 //!
 //!   drag::start_drag(
 //!     #[cfg(target_os = "linux")]
@@ -45,7 +45,7 @@
 //!   let webview = wry::webview::WebViewBuilder::new(window).unwrap().build().unwrap();
 //!
 //!   let item = drag::DragItem::Files(vec![std::fs::canonicalize("./examples/icon.png").unwrap()]);
-//!   let preview_icon = drag::Image::File("../../icon.png".into());
+//!   let preview_icon = drag::Image::File("./examples/icon.png".into());
 //!
 //!   drag::start_drag(
 //!     #[cfg(target_os = "linux")]
@@ -66,7 +66,7 @@
 //!   let window = winit::window::WindowBuilder::new().build(&event_loop).unwrap();
 //!
 //!   let item = drag::DragItem::Files(vec![std::fs::canonicalize("./examples/icon.png").unwrap()]);
-//!   let preview_icon = drag::Image::File("../../icon.png".into());
+//!   let preview_icon = drag::Image::File("./examples/icon.png".into());
 //!
 //!   # #[cfg(not(target_os = "linux"))]
 //!   let _ = drag::start_drag(&window, item, preview_icon);
@@ -89,6 +89,8 @@ pub enum Error {
     #[cfg(windows)]
     #[error("{0}")]
     WindowsError(#[from] windows::core::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
     #[error("unsupported window handle")]
     UnsupportedWindowHandle,
     #[error("failed to start drag")]
