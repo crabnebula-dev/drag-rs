@@ -93,6 +93,8 @@ pub enum Error {
     UnsupportedWindowHandle,
     #[error("failed to start drag")]
     FailedToStartDrag,
+    #[error("drag image not found")]
+    ImageNotFound,
     #[cfg(target_os = "linux")]
     #[error("empty drag target list")]
     EmptyTargetList,
