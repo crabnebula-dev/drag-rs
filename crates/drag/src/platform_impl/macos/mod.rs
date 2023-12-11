@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+use std::ffi::c_void;
+
 use cocoa::{
     appkit::{NSAlignmentOptions, NSApp, NSEvent, NSEventModifierFlags, NSEventType, NSImage},
     base::{id, nil},
@@ -13,7 +15,7 @@ use objc::{
 };
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{DragItem, Image};
+use crate::{DragItem, DragResult, Image};
 
 const UTF8_ENCODING: usize = 4;
 
@@ -29,10 +31,11 @@ unsafe fn new_nsstring(s: &str) -> id {
     ns_string
 }
 
-pub fn start_drag<W: HasRawWindowHandle>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
+    on_drop_callback: F,
 ) -> crate::Result<()> {
     if let RawWindowHandle::AppKit(w) = handle.raw_window_handle() {
         unsafe {
@@ -103,10 +106,16 @@ pub fn start_drag<W: HasRawWindowHandle>(
             let cls = ClassDecl::new("DragRsSource", class!(NSObject));
             let cls = match cls {
                 Some(mut cls) => {
+                    cls.add_ivar::<*mut c_void>("on_drop_ptr");
                     cls.add_method(
                         sel!(draggingSession:sourceOperationMaskForDraggingContext:),
                         dragging_session
                             as extern "C" fn(&Object, Sel, id, NSUInteger) -> NSUInteger,
+                    );
+                    cls.add_method(
+                        sel!(draggingSession:endedAtPoint:operation:),
+                        dragging_session_end
+                            as extern "C" fn(&Object, Sel, id, NSPoint, NSUInteger),
                     );
 
                     extern "C" fn dragging_session(
@@ -124,6 +133,26 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         }
                     }
 
+                    extern "C" fn dragging_session_end(
+                        this: &Object,
+                        _: Sel,
+                        _dragging_session: id,
+                        _ended_at_point: NSPoint,
+                        operation: NSUInteger,
+                    ) {
+                        unsafe {
+                            let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
+
+                            let callback = &*(*callback as *mut Box<dyn Fn(DragResult)>);
+                            if operation == 0 {
+                                // NSDragOperationNone
+                                callback(DragResult::Cancel);
+                            } else {
+                                callback(DragResult::Dropped);
+                            }
+                        }
+                    }
+
                     cls.register()
                 }
                 None => Class::get("DragRsSource").expect("Failed to get the class definition"),
@@ -131,6 +160,9 @@ pub fn start_drag<W: HasRawWindowHandle>(
 
             let source: id = msg_send![cls, alloc];
             let source: id = msg_send![source, init];
+
+            let callback_ptr = Box::into_raw(Box::new(on_drop_callback));
+            (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
 
             let _: () = msg_send![ns_view, beginDraggingSessionWithItems: file_items event: drag_event source: source];
         }

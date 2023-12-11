@@ -35,6 +35,9 @@
 //!     &window,
 //!     item,
 //!     preview_icon,
+//!     |result| {
+//!       println!("drag result: {result:?}");
+//!     }
 //!   );
 //!   ```
 //!
@@ -57,6 +60,9 @@
 //!     &webview.window(),
 //!     item,
 //!     preview_icon,
+//!     |result| {
+//!       println!("drag result: {result:?}");
+//!     }
 //!   );
 //!   ```
 //!
@@ -69,7 +75,9 @@
 //!   let preview_icon = drag::Image::File("./examples/icon.png".into());
 //!
 //!   # #[cfg(not(target_os = "linux"))]
-//!   let _ = drag::start_drag(&window, item, preview_icon);
+//!   let _ = drag::start_drag(&window, item, preview_icon, |result| {
+//!     println!("drag result: {result:?}");
+//!   });
 //!   ```
 
 #[cfg(target_os = "macos")]
@@ -100,9 +108,19 @@ pub enum Error {
     #[cfg(target_os = "linux")]
     #[error("empty drag target list")]
     EmptyTargetList,
+    #[error("failed to drop items")]
+    FailedToDrop,
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub enum DragResult {
+    Dropped,
+    Cancel,
 }
 
 /// Item to be dragged.
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(untagged))]
 pub enum DragItem {
@@ -113,6 +131,7 @@ pub enum DragItem {
 }
 
 /// An image definition.
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", serde(untagged))]
 pub enum Image {

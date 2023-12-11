@@ -4,7 +4,7 @@
 
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{DragItem, Image};
+use crate::{DragItem, DragResult, Image};
 
 use std::{
     ffi::c_void,
@@ -20,13 +20,12 @@ use windows::{
         Graphics::Gdi::{GetObjectW, BITMAP},
         System::Com::*,
         System::Memory::*,
-        System::Ole::OleInitialize,
+        System::Ole::{DoDragDrop, OleInitialize},
         System::Ole::{IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY},
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
         UI::Shell::{
             BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
-            SHCreateDataObject, SHCreateShellItemArrayFromIDLists, SHDoDragDrop, DROPFILES,
-            SHDRAGIMAGE,
+            SHCreateDataObject, SHCreateShellItemArrayFromIDLists, DROPFILES, SHDRAGIMAGE,
         },
     },
 };
@@ -184,10 +183,11 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
+    on_drop_callback: F,
 ) -> crate::Result<()> {
     if let RawWindowHandle::Win32(_w) = handle.raw_window_handle() {
         match item {
@@ -216,16 +216,23 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         }
                     }
 
-                    let _ = SHDoDragDrop(
-                        HWND(_w.hwnd as isize),
+                    let mut out_dropeffect = DROPEFFECT::default();
+                    let drop_result = DoDragDrop(
                         &data_object,
                         &drop_source,
                         DROPEFFECT_COPY,
+                        &mut out_dropeffect,
                     );
-                };
+
+                    if drop_result == DRAGDROP_S_DROP {
+                        on_drop_callback(DragResult::Dropped);
+                    } else {
+                        // DRAGDROP_S_CANCEL
+                        on_drop_callback(DragResult::Cancel);
+                    }
+                }
             }
         }
-
         Ok(())
     } else {
         Err(crate::Error::UnsupportedWindowHandle)
