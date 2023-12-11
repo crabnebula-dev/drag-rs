@@ -161,6 +161,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
             let source: id = msg_send![cls, alloc];
             let source: id = msg_send![source, init];
 
+            let on_drop_callback = Box::new(on_drop_callback) as Box<dyn Fn(DragResult) + Send>;
             let callback_ptr = Box::into_raw(Box::new(on_drop_callback));
             (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
 
