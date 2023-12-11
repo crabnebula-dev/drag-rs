@@ -226,9 +226,8 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
 
                     if drop_result == DRAGDROP_S_DROP {
                         on_drop_callback(DragResult::Dropped);
-                    } else if drop_result == DRAGDROP_S_CANCEL {
-                        on_drop_callback(DragResult::Cancel);
                     } else {
+                        // DRAGDROP_S_CANCEL
                         on_drop_callback(DragResult::Cancel);
                     }
                 }
