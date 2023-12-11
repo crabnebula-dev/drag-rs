@@ -15,7 +15,7 @@ use objc::{
 };
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{DragItem, DropResult, Image};
+use crate::{DragItem, DragResult, Image};
 
 const UTF8_ENCODING: usize = 4;
 
@@ -31,7 +31,7 @@ unsafe fn new_nsstring(s: &str) -> id {
     ns_string
 }
 
-pub fn start_drag<W: HasRawWindowHandle, F: Fn(DropResult) + Send + 'static>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
@@ -143,12 +143,12 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DropResult) + Send + 'static>(
                         unsafe {
                             let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
 
-                            let callback = &*(*callback as *mut Box<dyn Fn(DropResult)>);
+                            let callback = &*(*callback as *mut Box<dyn Fn(DragResult)>);
                             if operation == 0 {
                                 // NSDragOperationNone
-                                callback(DropResult::Cancel);
+                                callback(DragResult::Cancel);
                             } else {
-                                callback(DropResult::Dropped);
+                                callback(DragResult::Dropped);
                             }
                         }
                     }

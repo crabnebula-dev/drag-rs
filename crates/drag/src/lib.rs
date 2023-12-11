@@ -114,7 +114,7 @@ pub enum Error {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub enum DropResult {
+pub enum DragResult {
     Dropped,
     Cancel,
 }

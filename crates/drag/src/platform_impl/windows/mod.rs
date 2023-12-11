@@ -4,7 +4,7 @@
 
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{DragItem, DropResult, Image};
+use crate::{DragItem, DragResult, Image};
 
 use std::{
     ffi::c_void,
@@ -183,7 +183,7 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle, F: Fn(DropResult) + Send + 'static>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
@@ -225,11 +225,11 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DropResult) + Send + 'static>(
                     );
 
                     if drop_result == DRAGDROP_S_DROP {
-                        on_drop_callback(DropResult::Dropped);
+                        on_drop_callback(DragResult::Dropped);
                     } else if drop_result == DRAGDROP_S_CANCEL {
-                        on_drop_callback(DropResult::Cancel);
+                        on_drop_callback(DragResult::Cancel);
                     } else {
-                        on_drop_callback(DropResult::Cancel);
+                        on_drop_callback(DragResult::Cancel);
                     }
                 }
             }

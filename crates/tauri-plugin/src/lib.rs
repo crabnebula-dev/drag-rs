@@ -51,7 +51,7 @@ async fn start_drag<R: Runtime>(
             Ok(w) => drag::start_drag(&w, item, image, move |result| {
                 if let Some(on_event_fn) = on_event_fn {
                     let js = tauri::api::ipc::format_callback(on_event_fn, &result)
-                        .expect("unable to serialize DropResult");
+                        .expect("unable to serialize DragResult");
 
                     let _ = window.eval(js.as_str());
                 }

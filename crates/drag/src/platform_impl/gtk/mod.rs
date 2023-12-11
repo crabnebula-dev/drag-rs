@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{DragItem, DropResult, Image};
+use crate::{DragItem, DragResult, Image};
 use gdkx11::{
     gdk,
     glib::{ObjectExt, SignalHandlerId},
@@ -17,7 +17,7 @@ use gtk::{
     prelude::{DragContextExtManual, PixbufLoaderExt, WidgetExt, WidgetExtManual},
 };
 
-pub fn start_drag<F: Fn(DropResult) + Send + 'static>(
+pub fn start_drag<F: Fn(DragResult) + Send + 'static>(
     window: &gtk::ApplicationWindow,
     item: DragItem,
     image: Image,
@@ -93,7 +93,7 @@ fn clear_signal_handlers(window: &gtk::ApplicationWindow, handler_ids: &mut Vec<
     }
 }
 
-fn on_drop_cancel<F: Fn(DropResult) + Send + 'static>(
+fn on_drop_cancel<F: Fn(DragResult) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
@@ -107,11 +107,11 @@ fn on_drop_cancel<F: Fn(DropResult) + Send + 'static>(
         clear_signal_handlers(&window, handler_ids);
         window.drag_source_unset();
 
-        callback(DropResult::Cancel);
+        callback(DragResult::Cancel);
     });
 }
 
-fn on_drop_performed<F: Fn(DropResult) + Send + 'static>(
+fn on_drop_performed<F: Fn(DragResult) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
@@ -125,6 +125,6 @@ fn on_drop_performed<F: Fn(DropResult) + Send + 'static>(
         clear_signal_handlers(&window, handler_ids);
         window.drag_source_unset();
 
-        callback(DropResult::Dropped);
+        callback(DragResult::Dropped);
     });
 }
