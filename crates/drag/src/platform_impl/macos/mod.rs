@@ -31,11 +31,11 @@ unsafe fn new_nsstring(s: &str) -> id {
     ns_string
 }
 
-pub fn start_drag<W: HasRawWindowHandle>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DropResult) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
-    on_drop_callback: Option<Box<dyn Fn(DropResult) + Send>>,
+    on_drop_callback: F,
 ) -> crate::Result<()> {
     if let RawWindowHandle::AppKit(w) = handle.raw_window_handle() {
         unsafe {
@@ -142,9 +142,6 @@ pub fn start_drag<W: HasRawWindowHandle>(
                     ) {
                         unsafe {
                             let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
-                            if callback.is_null() {
-                                return;
-                            }
 
                             let callback = &*(*callback as *mut Box<dyn Fn(DropResult)>);
                             if operation == 0 {
@@ -164,10 +161,8 @@ pub fn start_drag<W: HasRawWindowHandle>(
             let source: id = msg_send![cls, alloc];
             let source: id = msg_send![source, init];
 
-            if let Some(callback) = on_drop_callback {
-                let callback_ptr = Box::into_raw(Box::new(callback));
-                (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
-            }
+            let callback_ptr = Box::into_raw(Box::new(on_drop_callback));
+            (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
 
             let _: () = msg_send![ns_view, beginDraggingSessionWithItems: file_items event: drag_event source: source];
         }

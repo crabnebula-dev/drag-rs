@@ -28,7 +28,9 @@
       event.preventDefault();
 
       const path = await window.__TAURI__.path.resolveResource('../icon.png')
-      window.__TAURI__.drag.startDrag({ item: [path], icon: path });
+      window.__TAURI__.drag.startDrag({ item: [path], icon: path }, (result) => {
+        console.log(result);
+      });
     };
   </script>
 </body>

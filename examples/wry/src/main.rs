@@ -97,9 +97,9 @@ fn main() -> wry::Result<()> {
                         ]),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("./examples/icon.png".into()),
-                        Some(Box::new(|result: DropResult| {
+                        |result: DropResult| {
                             println!("--> Drop Result: [{:?}]", result);
-                        })),
+                        },
                     )
                     .unwrap();
                 }

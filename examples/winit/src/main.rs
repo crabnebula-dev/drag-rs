@@ -2,17 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-#![cfg(not(target_os = "linux"))]
-
-use drag::{start_drag, DragItem, DropResult, Image};
-use winit::{
-    dpi::LogicalSize,
-    event::{DeviceEvent, ElementState, Event, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
-
+#[cfg(target_os = "linux")]
 fn main() {
+    eprintln!("This example is not supported on Linux");
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    use drag::{start_drag, DragItem, DropResult, Image};
+    use winit::{
+        dpi::LogicalSize,
+        event::{DeviceEvent, ElementState, Event, StartCause, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::WindowBuilder,
+    };
+
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(400., 100.))

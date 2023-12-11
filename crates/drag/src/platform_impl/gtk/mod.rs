@@ -17,11 +17,11 @@ use gtk::{
     prelude::{DragContextExtManual, PixbufLoaderExt, WidgetExt, WidgetExtManual},
 };
 
-pub fn start_drag(
+pub fn start_drag<F: Fn(DropResult) + Send + 'static>(
     window: &gtk::ApplicationWindow,
     item: DragItem,
     image: Image,
-    on_drop_callback: Option<Box<dyn Fn(DropResult) + Send>>,
+    on_drop_callback: F,
 ) -> crate::Result<()> {
     let handler_ids: Arc<Mutex<Vec<SignalHandlerId>>> = Arc::new(Mutex::new(vec![]));
 
@@ -53,9 +53,9 @@ pub fn start_drag(
             -1,
             -1,
         ) {
-            let callback = on_drop_callback.map(Rc::new);
-            on_drop_cancel(&callback, window, &handler_ids, &drag_context);
-            on_drop_performed(&callback, window, &handler_ids, &drag_context);
+            let callback = Rc::new(on_drop_callback);
+            on_drop_cancel(callback.clone(), window, &handler_ids, &drag_context);
+            on_drop_performed(callback, window, &handler_ids, &drag_context);
 
             let icon_pixbuf: Option<gdk_pixbuf::Pixbuf> = match &image {
                 Image::Raw(data) => image_binary_to_pixbuf(data),
@@ -93,13 +93,12 @@ fn clear_signal_handlers(window: &gtk::ApplicationWindow, handler_ids: &mut Vec<
     }
 }
 
-fn on_drop_cancel(
-    callback: &Option<Rc<Box<dyn Fn(DropResult) + Send>>>,
+fn on_drop_cancel<F: Fn(DropResult) + Send + 'static>(
+    callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
     drag_context: &gdk::DragContext,
 ) {
-    let callback = callback.as_ref().cloned();
     let window = window.clone();
     let handler_ids = handler_ids.clone();
 
@@ -108,19 +107,16 @@ fn on_drop_cancel(
         clear_signal_handlers(&window, handler_ids);
         window.drag_source_unset();
 
-        if let Some(callback) = &callback {
-            callback(DropResult::Cancel);
-        }
+        callback(DropResult::Cancel);
     });
 }
 
-fn on_drop_performed(
-    callback: &Option<Rc<Box<dyn Fn(DropResult) + Send>>>,
+fn on_drop_performed<F: Fn(DropResult) + Send + 'static>(
+    callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
     drag_context: &gdk::DragContext,
 ) {
-    let callback = callback.as_ref().cloned();
     let window = window.clone();
     let handler_ids = handler_ids.clone();
 
@@ -129,8 +125,6 @@ fn on_drop_performed(
         clear_signal_handlers(&window, handler_ids);
         window.drag_source_unset();
 
-        if let Some(callback) = &callback {
-            callback(DropResult::Dropped);
-        }
+        callback(DropResult::Dropped);
     });
 }

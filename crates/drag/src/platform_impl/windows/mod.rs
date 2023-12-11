@@ -183,11 +183,11 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DropResult) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
-    on_drop_callback: Option<Box<dyn Fn(DropResult)>>,
+    on_drop_callback: F,
 ) -> crate::Result<()> {
     if let RawWindowHandle::Win32(_w) = handle.raw_window_handle() {
         match item {
@@ -224,14 +224,12 @@ pub fn start_drag<W: HasRawWindowHandle>(
                         &mut out_dropeffect,
                     );
 
-                    if let Some(callback) = on_drop_callback {
-                        if drop_result == DRAGDROP_S_DROP {
-                            callback(DropResult::Dropped);
-                        } else if drop_result == DRAGDROP_S_CANCEL {
-                            callback(DropResult::Cancel);
-                        } else {
-                            callback(DropResult::Cancel);
-                        }
+                    if drop_result == DRAGDROP_S_DROP {
+                        on_drop_callback(DropResult::Dropped);
+                    } else if drop_result == DRAGDROP_S_CANCEL {
+                        on_drop_callback(DropResult::Cancel);
+                    } else {
+                        on_drop_callback(DropResult::Cancel);
                     }
                 }
             }

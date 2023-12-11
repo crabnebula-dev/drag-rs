@@ -4,9 +4,9 @@
 
 use std::sync::mpsc::channel;
 
-use drag::DropResult;
 use serde::{ser::Serializer, Serialize};
 use tauri::{
+    api::ipc::CallbackFn,
     command,
     plugin::{Builder, TauriPlugin},
     AppHandle, Runtime, Window,
@@ -37,6 +37,7 @@ async fn start_drag<R: Runtime>(
     window: Window<R>,
     item: drag::DragItem,
     image: drag::Image,
+    on_event_fn: Option<CallbackFn>,
 ) -> Result<()> {
     let (tx, rx) = channel();
 
@@ -47,7 +48,15 @@ async fn start_drag<R: Runtime>(
         let raw_window = tauri::Result::Ok(window);
 
         let r = match raw_window {
-            Ok(w) => drag::start_drag(&w, item, image, None).map_err(Into::into),
+            Ok(w) => drag::start_drag(&w, item, image, move |result| {
+                if let Some(on_event_fn) = on_event_fn {
+                    let js = tauri::api::ipc::format_callback(on_event_fn, &result)
+                        .expect("unable to serialize DropResult");
+
+                    let _ = window.eval(js.as_str());
+                }
+            })
+            .map_err(Into::into),
             Err(e) => Err(e.into()),
         };
         tx.send(r).unwrap();
