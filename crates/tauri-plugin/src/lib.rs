@@ -45,7 +45,7 @@ async fn start_drag<R: Runtime>(
         #[cfg(target_os = "linux")]
         let raw_window = window.gtk_window();
         #[cfg(not(target_os = "linux"))]
-        let raw_window = tauri::Result::Ok(window);
+        let raw_window = tauri::Result::Ok(window.clone());
 
         let r = match raw_window {
             Ok(w) => drag::start_drag(&w, item, image, move |result| {

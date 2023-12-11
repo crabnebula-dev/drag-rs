@@ -50,9 +50,9 @@ fn main() {
                         ),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("./examples/icon.png".into()),
-                        Some(Box::new(|result: DragResult| {
+                        |result: DragResult| {
                             println!("--> Drop Result: [{:?}]", result);
-                        })),
+                        },
                     )
                     .unwrap();
                 }
