@@ -119,15 +119,19 @@ pub enum DragResult {
     Cancel,
 }
 
+pub type DataProvider = Box<dyn Fn(&str) -> Option<Vec<u8>>>;
+
 /// Item to be dragged.
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum DragItem {
     /// A list of files to be dragged.
     ///
     /// The paths must be absolute.
     Files(Vec<PathBuf>),
+    /// Data to share with another app.
+    Data {
+        provider: DataProvider,
+        types: Vec<String>,
+    },
 }
 
 /// An image definition.

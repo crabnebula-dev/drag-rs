@@ -232,6 +232,10 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                     }
                 }
             }
+            DragItem::Data { .. } => {
+                on_drop_callback(DragResult::Cancel);
+                return Ok(());
+            }
         }
         Ok(())
     } else {

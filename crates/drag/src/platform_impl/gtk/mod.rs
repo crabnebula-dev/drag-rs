@@ -42,6 +42,10 @@ pub fn start_drag<F: Fn(DragResult) + Send + 'static>(
                     data.set_uris(&uris);
                 }));
         }
+        DragItem::Data { .. } => {
+            on_drop_callback(DragResult::Cancel);
+            return Ok(());
+        }
     }
 
     if let Some(target_list) = &window.drag_source_get_target_list() {
