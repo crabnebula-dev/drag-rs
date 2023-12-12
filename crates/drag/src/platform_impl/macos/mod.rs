@@ -116,6 +116,23 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                                 sel!(pasteboard:item:provideDataForType:),
                                 provide_data as extern "C" fn(&Object, Sel, id, id, id),
                             );
+                            cls.add_method(
+                                sel!(pasteboardFinishedWithDataProvider:),
+                                pasteboard_finished as extern "C" fn(&Object, Sel, id),
+                            );
+
+                            extern "C" fn pasteboard_finished(
+                                this: &Object,
+                                _: Sel,
+                                _pasteboard: id,
+                            ) {
+                                unsafe {
+                                    let provider = this.get_ivar::<*mut c_void>("provider_ptr");
+                                    drop(Box::from_raw(
+                                        *provider as *mut Box<dyn Fn(&str) -> Option<Vec<u8>>>,
+                                    ));
+                                }
+                            }
 
                             extern "C" fn provide_data(
                                 this: &Object,
@@ -227,13 +244,15 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                         unsafe {
                             let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
 
-                            let callback = &*(*callback as *mut Box<dyn Fn(DragResult)>);
+                            let callback_closure = &*(*callback as *mut Box<dyn Fn(DragResult)>);
                             if operation == 0 {
                                 // NSDragOperationNone
-                                callback(DragResult::Cancel);
+                                callback_closure(DragResult::Cancel);
                             } else {
-                                callback(DragResult::Dropped);
+                                callback_closure(DragResult::Dropped);
                             }
+
+                            drop(Box::from_raw(*callback as *mut Box<dyn Fn(DragResult)>));
                         }
                     }
 
