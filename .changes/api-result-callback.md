@@ -1,4 +1,5 @@
 ---
+"tauri-plugin-drag": minor
 "@crabnebula/tauri-plugin-drag": minor
 ---
 

@@ -2,16 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void};
 
 use cocoa::{
     appkit::{NSAlignmentOptions, NSApp, NSEvent, NSEventModifierFlags, NSEventType, NSImage},
     base::{id, nil},
-    foundation::{NSData, NSPoint, NSRect, NSSize, NSUInteger},
+    foundation::{NSArray, NSData, NSPoint, NSRect, NSSize, NSUInteger},
 };
 use objc::{
     declare::ClassDecl,
-    runtime::{Class, Object, Sel},
+    runtime::{Class, Object, Protocol, Sel, NO, YES},
 };
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
@@ -19,16 +19,34 @@ use crate::{DragItem, DragResult, Image};
 
 const UTF8_ENCODING: usize = 4;
 
-unsafe fn new_nsstring(s: &str) -> id {
-    let ns_string: id = msg_send![class!(NSString), alloc];
-    let ns_string: id =
-        msg_send![ns_string, initWithBytes:s.as_ptr() length:s.len() encoding:UTF8_ENCODING];
+struct NSString(id);
 
-    // The thing is allocated in rust, the thing must be set to autorelease in rust to relinquish control
-    // or it can not be released correctly in OC runtime
-    let _: () = msg_send![ns_string, autorelease];
+impl NSString {
+    fn new(s: &str) -> Self {
+        // Safety: objc runtime calls are unsafe
+        NSString(unsafe {
+            let ns_string: id = msg_send![class!(NSString), alloc];
+            let ns_string: id = msg_send![ns_string,
+                            initWithBytes:s.as_ptr()
+                            length:s.len()
+                            encoding:UTF8_ENCODING];
 
-    ns_string
+            // The thing is allocated in rust, the thing must be set to autorelease in rust to relinquish control
+            // or it can not be released correctly in OC runtime
+            let _: () = msg_send![ns_string, autorelease];
+
+            ns_string
+        })
+    }
+
+    fn to_str(&self) -> &str {
+        unsafe {
+            let bytes: *const c_char = msg_send![self.0, UTF8String];
+            let len = msg_send![self.0, lengthOfBytesUsingEncoding: UTF8_ENCODING];
+            let bytes = std::slice::from_raw_parts(bytes as *const u8, len);
+            std::str::from_utf8_unchecked(bytes)
+        }
+    }
 }
 
 pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
@@ -52,7 +70,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                     if !path.exists() {
                         return Err(crate::Error::ImageNotFound);
                     }
-                    NSImage::initByReferencingFile_(img, new_nsstring(&path.to_string_lossy()))
+                    NSImage::initByReferencingFile_(img, NSString::new(&path.to_string_lossy()).0)
                 }
                 Image::Raw(bytes) => {
                     let data = NSData::dataWithBytes_length_(
@@ -72,19 +90,102 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                 image_size,
             );
 
-            let file_items: id = msg_send![class!(NSMutableArray), array];
+            let dragging_items: id = msg_send![class!(NSMutableArray), array];
 
             match item {
                 DragItem::Files(files) => {
                     for path in files {
-                        let nsurl: id = msg_send![class!(NSURL), fileURLWithPath: new_nsstring(&path.display().to_string()) isDirectory: false];
+                        let nsurl: id = msg_send![class!(NSURL), fileURLWithPath: NSString::new(&path.display().to_string()) isDirectory: false];
                         let drag_item: id = msg_send![class!(NSDraggingItem), alloc];
                         let item: id = msg_send![drag_item, initWithPasteboardWriter: nsurl];
 
                         let _: () = msg_send![item, setDraggingFrame: image_rect contents: img];
 
-                        let _: () = msg_send![file_items, addObject: item];
+                        let _: () = msg_send![dragging_items, addObject: item];
                     }
+                }
+                DragItem::Data { provider, types } => {
+                    let cls = ClassDecl::new("DragRsDataProvider", class!(NSObject));
+                    let cls = match cls {
+                        Some(mut cls) => {
+                            cls.add_ivar::<*mut c_void>("provider_ptr");
+                            cls.add_protocol(
+                                Protocol::get("NSPasteboardItemDataProvider").unwrap(),
+                            );
+                            cls.add_method(
+                                sel!(pasteboard:item:provideDataForType:),
+                                provide_data as extern "C" fn(&Object, Sel, id, id, id),
+                            );
+                            cls.add_method(
+                                sel!(pasteboardFinishedWithDataProvider:),
+                                pasteboard_finished as extern "C" fn(&Object, Sel, id),
+                            );
+
+                            extern "C" fn pasteboard_finished(
+                                this: &Object,
+                                _: Sel,
+                                _pasteboard: id,
+                            ) {
+                                unsafe {
+                                    let provider = this.get_ivar::<*mut c_void>("provider_ptr");
+                                    drop(Box::from_raw(
+                                        *provider as *mut Box<dyn Fn(&str) -> Option<Vec<u8>>>,
+                                    ));
+                                }
+                            }
+
+                            extern "C" fn provide_data(
+                                this: &Object,
+                                _: Sel,
+                                _pasteboard: id,
+                                item: id,
+                                data_type: id,
+                            ) {
+                                unsafe {
+                                    let provider = this.get_ivar::<*mut c_void>("provider_ptr");
+
+                                    let provider =
+                                        &*(*provider as *mut Box<dyn Fn(&str) -> Option<Vec<u8>>>);
+
+                                    if let Some(data) = provider(NSString(data_type).to_str()) {
+                                        let bytes = data.as_ptr() as *mut c_void;
+                                        let length = data.len();
+                                        let data: id = msg_send![class!(NSData), alloc];
+                                        let data: id = msg_send![data, initWithBytesNoCopy:bytes length:length freeWhenDone: if length == 0 { NO } else { YES }];
+
+                                        let _: () =
+                                            msg_send![item, setData: data forType: data_type];
+                                    }
+                                }
+                            }
+
+                            cls.register()
+                        }
+                        None => Class::get("DragRsDataProvider")
+                            .expect("Failed to get the class definition"),
+                    };
+
+                    let data_provider: id = msg_send![cls, alloc];
+                    let data_provider: id = msg_send![data_provider, init];
+
+                    let provider_ptr = Box::into_raw(Box::new(provider));
+                    (*data_provider)
+                        .set_ivar("provider_ptr", provider_ptr as *mut _ as *mut c_void);
+
+                    let item: id = msg_send![class!(NSPasteboardItem), alloc];
+                    let item: id = msg_send![item, init];
+                    let types = types
+                        .into_iter()
+                        .map(|t| NSString::new(&t).0)
+                        .collect::<Vec<id>>();
+                    let _: () = msg_send![item, setDataProvider: data_provider forTypes: NSArray::arrayWithObjects(nil, &types)];
+
+                    let drag_item: id = msg_send![class!(NSDraggingItem), alloc];
+                    let item: id = msg_send![drag_item, initWithPasteboardWriter: item];
+
+                    let _: () = msg_send![item, setDraggingFrame: image_rect contents: img];
+
+                    let _: () = msg_send![dragging_items, addObject: item];
                 }
             }
 
@@ -143,13 +244,15 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                         unsafe {
                             let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
 
-                            let callback = &*(*callback as *mut Box<dyn Fn(DragResult)>);
+                            let callback_closure = &*(*callback as *mut Box<dyn Fn(DragResult)>);
                             if operation == 0 {
                                 // NSDragOperationNone
-                                callback(DragResult::Cancel);
+                                callback_closure(DragResult::Cancel);
                             } else {
-                                callback(DragResult::Dropped);
+                                callback_closure(DragResult::Dropped);
                             }
+
+                            drop(Box::from_raw(*callback as *mut Box<dyn Fn(DragResult)>));
                         }
                     }
 
@@ -165,7 +268,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
             let callback_ptr = Box::into_raw(Box::new(on_drop_callback));
             (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
 
-            let _: () = msg_send![ns_view, beginDraggingSessionWithItems: file_items event: drag_event source: source];
+            let _: () = msg_send![ns_view, beginDraggingSessionWithItems: dragging_items event: drag_event source: source];
         }
 
         Ok(())
