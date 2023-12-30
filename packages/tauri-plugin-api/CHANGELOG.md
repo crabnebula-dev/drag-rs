@@ -1,5 +1,9 @@
 # Changelog
 
+## \[0.2.2]
+
+- [`dcafc76`](https://github.com/crabnebula-dev/drag-rs/commit/undefined) Fixes package ignoring dist files.
+
 ## \[0.2.1]
 
 - [`4d0ce4f`](https://github.com/crabnebula-dev/drag-rs/commit/4d0ce4f2a2d81596f67adba2bc6addd8af50a73c) Fixes package missing dist files.
