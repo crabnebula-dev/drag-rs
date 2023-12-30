@@ -10,8 +10,9 @@
         }
       },
       "publish": [
-        "npm run build",
-        "npm publish --access public"
+        "yarn install",
+        "yarn build",
+        "yarn publish --access public"
       ]
     },
     "rust": {
