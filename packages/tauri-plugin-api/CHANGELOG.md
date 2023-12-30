@@ -1,5 +1,9 @@
 # Changelog
 
+## \[0.2.1]
+
+- [`4d0ce4f`](https://github.com/crabnebula-dev/drag-rs/commit/4d0ce4f2a2d81596f67adba2bc6addd8af50a73c) Fixes package missing dist files.
+
 ## \[0.2.0]
 
 - [`1449076`](https://github.com/crabnebula-dev/drag-rs/commit/14490764de8ff50969a3f2299d204e44e091752e) The `startDrag` function now takes an argument for a callback function for the operation result (either `Dragged` or `Cancelled`).
