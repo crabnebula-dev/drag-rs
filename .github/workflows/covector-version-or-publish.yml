@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0 # required for use of git history
       - uses: actions/setup-node@v4
         with:
-          node-version: 14
+          node-version: 18
           registry-url: 'https://registry.npmjs.org'
       - name: cargo login
         run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
