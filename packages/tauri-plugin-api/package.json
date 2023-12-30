@@ -1,6 +1,6 @@
 {
   "name": "@crabnebula/tauri-plugin-drag",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": "Lucas <lucas@crabnebula.dev>",
   "description": "Start a drag operation out of a Tauri window",
   "type": "module",
