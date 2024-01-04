@@ -12,3 +12,4 @@ tauri = "1"
 serde = "1"
 thiserror = "1"
 drag = { path = "../drag", version = "0.3.0", features = [ "serde" ] }
+base64 = "0.21"

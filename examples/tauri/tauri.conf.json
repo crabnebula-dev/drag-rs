@@ -1,7 +1,7 @@
 {
   "build": {
-    "distDir": "./index.html",
-    "devPath": "./index.html",
+    "distDir": ["./index.html", "./html2canvas.min.js"],
+    "devPath": ["./index.html", "./html2canvas.min.js"],
     "withGlobalTauri": true
   },
   "tauri": {
@@ -17,12 +17,15 @@
       {
         "title": "Drag",
         "width": 400,
-        "height": 100
+        "height": 200
       }
     ],
     "allowlist": {
       "path": {
         "all": true
+      },
+      "window": {
+        "create": true
       }
     }
   }

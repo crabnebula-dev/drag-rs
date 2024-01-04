@@ -27,6 +27,7 @@
   <div draggable="true" id="drag">
     Drag me
   </div>
+  <script src="html2canvas.min.js"></script>
   <script type="text/javascript">
     const fcpInput = document.getElementById('fcp');
 
@@ -42,10 +43,14 @@
     <asset-clip name="MyMovie1" ref="r2" format="r1" start="0s" duration="10s" audioRole="dialogue"/>
 </fcpxml>`;
 
-    document.getElementById('drag').ondragstart = async (event) => {
+    const dragger = document.getElementById('drag');
+
+    dragger.ondragstart = async (event) => {
       event.preventDefault();
 
-      const path = await window.__TAURI__.path.resolveResource('../icon.png')
+      const canvas = await html2canvas(dragger, { logging: false });
+      const path = await window.__TAURI__.path.resolveResource('../icon.png');
+
       window.__TAURI__.drag.startDrag({
         item: fcpInput.checked ? {
           data: fcpXml,
@@ -54,9 +59,10 @@
             // 'com.apple.finalcutpro.xml.v1-9',
             // 'com.apple.finalcutpro.xml',
           ]
-        } : [path], icon: path
+        } : [path], icon: canvas.toDataURL('image/png')
       }, (result) => {
         console.log(result);
+        new window.__TAURI__.window.WebviewWindow('second', { width: dragger.width, height: dragger.height })
       });
     };
   </script>

@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::channel};
 
-use serde::{ser::Serializer, Deserialize, Serialize};
+use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use tauri::{
     api::ipc::CallbackFn,
     command,
@@ -20,6 +20,8 @@ pub enum Error {
     Drag(#[from] drag::Error),
     #[error(transparent)]
     Tauri(#[from] tauri::Error),
+    #[error(transparent)]
+    Base64(#[from] base64::DecodeError),
 }
 
 impl Serialize for Error {
@@ -29,6 +31,30 @@ impl Serialize for Error {
     {
         serializer.serialize_str(self.to_string().as_ref())
     }
+}
+
+struct Base64Image(String);
+
+impl<'de> Deserialize<'de> for Base64Image {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        if let Some(data) = value.strip_prefix("data:image/png;base64,") {
+            return Ok(Self(data.into()));
+        }
+        Err(serde::de::Error::custom(
+            "expected an image/png base64 image string",
+        ))
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Image {
+    Base64(Base64Image),
+    Raw(drag::Image),
 }
 
 #[derive(Deserialize)]
@@ -57,10 +83,18 @@ async fn start_drag<R: Runtime>(
     app: AppHandle<R>,
     window: Window<R>,
     item: DragItem,
-    image: drag::Image,
+    image: Image,
     on_event_fn: Option<CallbackFn>,
 ) -> Result<()> {
     let (tx, rx) = channel();
+
+    let image = match image {
+        Image::Raw(r) => r,
+        Image::Base64(b) => {
+            use base64::Engine;
+            drag::Image::Raw(base64::engine::general_purpose::STANDARD_NO_PAD.decode(b.0)?)
+        }
+    };
 
     app.run_on_main_thread(move || {
         #[cfg(target_os = "linux")]
