@@ -9,7 +9,7 @@ fn main() {
 
 #[cfg(not(target_os = "linux"))]
 fn main() {
-    use drag::{start_drag, DragItem, DragResult, Image};
+    use drag::{start_drag, CursorPosition, DragItem, DragResult, Image};
     use winit::{
         dpi::LogicalSize,
         event::{DeviceEvent, ElementState, Event, StartCause, WindowEvent},
@@ -50,8 +50,11 @@ fn main() {
                         ),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("./examples/icon.png".into()),
-                        |result: DragResult| {
-                            println!("--> Drop Result: [{:?}]", result);
+                        |result: DragResult, cursor_pos: CursorPosition| {
+                            println!(
+                                "--> Drop Result: [{:?}], Cursor Pos:[{:?}]",
+                                result, cursor_pos
+                            );
                         },
                     )
                     .unwrap();

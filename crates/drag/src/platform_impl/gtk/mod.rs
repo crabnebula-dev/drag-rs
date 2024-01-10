@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use std::{
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
-
-use crate::{DragItem, DragResult, Image};
+use crate::{CursorPosition, DragItem, DragResult, Error, Image};
 use gdkx11::{
     gdk,
     glib::{ObjectExt, SignalHandlerId},
@@ -15,9 +10,14 @@ use gdkx11::{
 use gtk::{
     gdk_pixbuf,
     prelude::{DragContextExtManual, PixbufLoaderExt, WidgetExt, WidgetExtManual},
+    Inhibit,
+};
+use std::{
+    rc::Rc,
+    sync::{Arc, Mutex},
 };
 
-pub fn start_drag<F: Fn(DragResult) + Send + 'static>(
+pub fn start_drag<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     window: &gtk::ApplicationWindow,
     item: DragItem,
     image: Image,
@@ -43,7 +43,7 @@ pub fn start_drag<F: Fn(DragResult) + Send + 'static>(
                 }));
         }
         DragItem::Data { .. } => {
-            on_drop_callback(DragResult::Cancel);
+            on_drop_callback(DragResult::Cancel, get_cursor_position(window).unwrap());
             return Ok(());
         }
     }
@@ -58,8 +58,8 @@ pub fn start_drag<F: Fn(DragResult) + Send + 'static>(
             -1,
         ) {
             let callback = Rc::new(on_drop_callback);
-            on_drop_cancel(callback.clone(), window, &handler_ids, &drag_context);
-            on_drop_performed(callback, window, &handler_ids, &drag_context);
+            on_drop_failed(callback.clone(), window, &handler_ids);
+            on_drop_performed(callback.clone(), window, &handler_ids, &drag_context);
 
             let icon_pixbuf: Option<gdk_pixbuf::Pixbuf> = match &image {
                 Image::Raw(data) => image_binary_to_pixbuf(data),
@@ -97,25 +97,49 @@ fn clear_signal_handlers(window: &gtk::ApplicationWindow, handler_ids: &mut Vec<
     }
 }
 
-fn on_drop_cancel<F: Fn(DragResult) + Send + 'static>(
+fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
-    drag_context: &gdk::DragContext,
 ) {
-    let window = window.clone();
-    let handler_ids = handler_ids.clone();
+    let window_clone = window.clone();
+    let handler_ids_clone = handler_ids.clone();
 
-    drag_context.connect_cancel(move |_, _| {
-        let handler_ids = &mut handler_ids.lock().unwrap();
-        clear_signal_handlers(&window, handler_ids);
-        window.drag_source_unset();
-
-        callback(DragResult::Cancel);
-    });
+    handler_ids
+        .lock()
+        .unwrap()
+        .push(window.connect_drag_failed(move |_, _, drag_result| {
+            let inhibit = match drag_result {
+                gtk::DragResult::NoTarget => {
+                    callback(
+                        DragResult::NoTarget,
+                        get_cursor_position(&window_clone).unwrap(),
+                    );
+                    Inhibit(true)
+                }
+                _ => {
+                    callback(
+                        DragResult::Cancel,
+                        get_cursor_position(&window_clone).unwrap(),
+                    );
+                    Inhibit(false)
+                }
+            };
+            cleanup_signal_handlers(&handler_ids_clone, &window_clone);
+            inhibit
+        }));
 }
 
-fn on_drop_performed<F: Fn(DragResult) + Send + 'static>(
+fn cleanup_signal_handlers(
+    handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
+    window: &gtk::ApplicationWindow,
+) {
+    let handler_ids = &mut handler_ids.lock().unwrap();
+    clear_signal_handlers(window, handler_ids);
+    window.drag_source_unset();
+}
+
+fn on_drop_performed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
@@ -125,10 +149,20 @@ fn on_drop_performed<F: Fn(DragResult) + Send + 'static>(
     let handler_ids = handler_ids.clone();
 
     drag_context.connect_drop_performed(move |_, _| {
-        let handler_ids = &mut handler_ids.lock().unwrap();
-        clear_signal_handlers(&window, handler_ids);
-        window.drag_source_unset();
-
-        callback(DragResult::Dropped);
+        cleanup_signal_handlers(&handler_ids, &window);
+        callback(DragResult::Dropped, get_cursor_position(&window).unwrap());
     });
+}
+
+fn get_cursor_position(window: &gtk::ApplicationWindow) -> Result<CursorPosition, Error> {
+    if let Some(cursor) = window
+        .display()
+        .default_seat()
+        .and_then(|seat| seat.pointer())
+    {
+        let (_, x, y) = cursor.position();
+        Ok(CursorPosition { x, y })
+    } else {
+        Err(Error::FailedToGetCursorPosition)
+    }
 }

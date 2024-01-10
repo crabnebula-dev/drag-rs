@@ -110,6 +110,8 @@ pub enum Error {
     EmptyTargetList,
     #[error("failed to drop items")]
     FailedToDrop,
+    #[error("failed to get cursor position")]
+    FailedToGetCursorPosition,
 }
 
 #[derive(Debug)]
@@ -117,6 +119,7 @@ pub enum Error {
 pub enum DragResult {
     Dropped,
     Cancel,
+    NoTarget,
 }
 
 pub type DataProvider = Box<dyn Fn(&str) -> Option<Vec<u8>>>;
@@ -143,4 +146,12 @@ pub enum Image {
     File(PathBuf),
     /// Raw bytes of the image.
     Raw(Vec<u8>),
+}
+
+/// Logical position of the cursor.
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct CursorPosition {
+    x: i32,
+    y: i32,
 }

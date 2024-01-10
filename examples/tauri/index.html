@@ -1,37 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      #drag {
+        border: 2px solid black;
+        border-radius: 3px;
+        width: 100%;
+        height: calc(100vh - 40px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-user-select: none;
+      }
+    </style>
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <style>
-    #drag {
-      border: 2px solid black;
-      border-radius: 3px;
-      width: 100%;
-      height: calc(100vh - 40px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      -webkit-user-select: none;
-    }
-  </style>
-</head>
+  <body>
+    <div>
+      <input id="fcp" type="checkbox" />
+      <label for="fcp">FCP</label>
+    </div>
+    <div draggable="true" id="drag">Drag me</div>
+    <script src="html2canvas.min.js"></script>
+    <script type="text/javascript">
+      const fcpInput = document.getElementById('fcp');
 
-<body>
-  <div>
-    <input id="fcp" type="checkbox">
-    <label for="fcp">FCP</label>
-  </div>
-  <div draggable="true" id="drag">
-    Drag me
-  </div>
-  <script src="html2canvas.min.js"></script>
-  <script type="text/javascript">
-    const fcpInput = document.getElementById('fcp');
-
-    const fcpXml = `<fcpxml version="1.10">
+      const fcpXml = `<fcpxml version="1.10">
     <!-- Resources -->
     <resources>
         <format id="r1" name="FFVideoFormat1080p30"/>
@@ -43,29 +40,43 @@
     <asset-clip name="MyMovie1" ref="r2" format="r1" start="0s" duration="10s" audioRole="dialogue"/>
 </fcpxml>`;
 
-    const dragger = document.getElementById('drag');
+      const dragger = document.getElementById('drag');
 
-    dragger.ondragstart = async (event) => {
-      event.preventDefault();
+      dragger.ondragstart = async (event) => {
+        event.preventDefault();
 
-      const canvas = await html2canvas(dragger, { logging: false });
-      const path = await window.__TAURI__.path.resolveResource('../icon.png');
+        const canvas = await html2canvas(dragger, { logging: false });
+        const path = await window.__TAURI__.path.resolveResource('../icon.png');
 
-      window.__TAURI__.drag.startDrag({
-        item: fcpInput.checked ? {
-          data: fcpXml,
-          types: [
-            'com.apple.finalcutpro.xml.v1-10',
-            // 'com.apple.finalcutpro.xml.v1-9',
-            // 'com.apple.finalcutpro.xml',
-          ]
-        } : [path], icon: canvas.toDataURL('image/png')
-      }, (result) => {
-        console.log(result);
-        new window.__TAURI__.window.WebviewWindow('second', { width: dragger.width, height: dragger.height })
-      });
-    };
-  </script>
-</body>
-
+        window.__TAURI__.drag.startDrag(
+          {
+            item: fcpInput.checked
+              ? {
+                  data: fcpXml,
+                  types: [
+                    'com.apple.finalcutpro.xml.v1-10',
+                    // 'com.apple.finalcutpro.xml.v1-9',
+                    // 'com.apple.finalcutpro.xml',
+                  ],
+                }
+              : [path],
+            icon: canvas.toDataURL('image/png'),
+          },
+          (result) => {
+            try {
+              const cbResult = JSON.parse(result);
+              new window.__TAURI__.window.WebviewWindow('second', {
+                width: dragger.clientWidth,
+                height: dragger.clientHeight,
+                x: cbResult.cursorPos.x,
+                y: cbResult.cursorPos.y,
+              });
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        );
+      };
+    </script>
+  </body>
 </html>

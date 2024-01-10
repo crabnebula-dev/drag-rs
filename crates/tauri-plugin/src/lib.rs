@@ -78,6 +78,13 @@ enum SharedData {
     Map(HashMap<String, String>),
 }
 
+#[derive(Serialize)]
+struct CallbackResult {
+    result: drag::DragResult,
+    #[serde(rename = "cursorPos")]
+    cursor_pos: drag::CursorPosition,
+}
+
 #[command]
 async fn start_drag<R: Runtime>(
     app: AppHandle<R>,
@@ -92,7 +99,7 @@ async fn start_drag<R: Runtime>(
         Image::Raw(r) => r,
         Image::Base64(b) => {
             use base64::Engine;
-            drag::Image::Raw(base64::engine::general_purpose::STANDARD_NO_PAD.decode(b.0)?)
+            drag::Image::Raw(base64::engine::general_purpose::STANDARD.decode(b.0)?)
         }
     };
 
@@ -116,10 +123,14 @@ async fn start_drag<R: Runtime>(
                     },
                 },
                 image,
-                move |result| {
+                move |result, cursor_pos| {
                     if let Some(on_event_fn) = on_event_fn {
-                        let js = tauri::api::ipc::format_callback(on_event_fn, &result)
-                            .expect("unable to serialize DragResult");
+                        let callback_result = CallbackResult { result, cursor_pos };
+                        let js = tauri::api::ipc::format_callback(
+                            on_event_fn,
+                            &serde_json::to_string(&callback_result).unwrap(),
+                        )
+                        .expect("unable to serialize DragResult");
 
                         let _ = window.eval(js.as_str());
                     }
