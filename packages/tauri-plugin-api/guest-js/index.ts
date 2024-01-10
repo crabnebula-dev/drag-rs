@@ -12,7 +12,7 @@ export type DragResult = "Dropped" | "Cancelled";
 export interface CursorPosition {
   x: Number;
   y: Number;
-};
+}
 
 export interface Options {
   item: DragItem;

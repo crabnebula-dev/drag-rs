@@ -5,11 +5,11 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
-      #drag {
+      .drag-item {
         border: 2px solid black;
         border-radius: 3px;
         width: 100%;
-        height: calc(100vh - 40px);
+        height: 80px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -23,60 +23,100 @@
       <input id="fcp" type="checkbox" />
       <label for="fcp">FCP</label>
     </div>
-    <div draggable="true" id="drag">Drag me</div>
+    <div id="drop-zone" class="drag-zone">
+      <div draggable="true" class="drag-item" id="drag-1">Drag me 1</div>
+      <div draggable="true" class="drag-item" id="drag-2">Drag me 2</div>
+      <div draggable="true" class="drag-item" id="drag-3">Drag me 3</div>
+    </div>
     <script src="html2canvas.min.js"></script>
     <script type="text/javascript">
       const fcpInput = document.getElementById('fcp');
-
       const fcpXml = `<fcpxml version="1.10">
-    <!-- Resources -->
-    <resources>
-        <format id="r1" name="FFVideoFormat1080p30"/>
-        <asset id="r2" start="0s" duration="10s" hasVideo="1" hasAudio="1" format="r1" audioSources="1" audioChannels="2" audioRate="48000">
-            <media-rep kind="original-media" src="http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"/>
-        </asset>
-    </resources>
-    <!-- Clips -->
-    <asset-clip name="MyMovie1" ref="r2" format="r1" start="0s" duration="10s" audioRole="dialogue"/>
-</fcpxml>`;
+          <!-- Resources -->
+          <resources>
+              <format id="r1" name="FFVideoFormat1080p30"/>
+              <asset id="r2" start="0s" duration="10s" hasVideo="1" hasAudio="1" format="r1" audioSources="1" audioChannels="2" audioRate="48000">
+                  <media-rep kind="original-media" src="http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"/>
+              </asset>
+          </resources>
+          <!-- Clips -->
+          <asset-clip name="MyMovie1" ref="r2" format="r1" start="0s" duration="10s" audioRole="dialogue"/>
+      </fcpxml>`;
 
-      const dragger = document.getElementById('drag');
+      const drag1 = document.getElementById('drag-1');
+      const drag2 = document.getElementById('drag-2');
+      const drag3 = document.getElementById('drag-3');
 
-      dragger.ondragstart = async (event) => {
+      drag1.ondragstart = dragHandler;
+      drag2.ondragstart = dragHandler;
+      drag3.ondragstart = dragHandler;
+
+      async function dragHandler(event) {
         event.preventDefault();
 
-        const canvas = await html2canvas(dragger, { logging: false });
+        const el = event.target;
+        const canvas = await html2canvas(el, { logging: false });
         const path = await window.__TAURI__.path.resolveResource('../icon.png');
+
+        const dragItem = fcpInput.checked
+          ? {
+              data: fcpXml,
+              types: [
+                'com.apple.finalcutpro.xml.v1-10',
+                // 'com.apple.finalcutpro.xml.v1-9',
+                // 'com.apple.finalcutpro.xml',
+              ],
+            }
+          : [path];
 
         window.__TAURI__.drag.startDrag(
           {
-            item: fcpInput.checked
-              ? {
-                  data: fcpXml,
-                  types: [
-                    'com.apple.finalcutpro.xml.v1-10',
-                    // 'com.apple.finalcutpro.xml.v1-9',
-                    // 'com.apple.finalcutpro.xml',
-                  ],
-                }
-              : [path],
+            item: dragItem,
             icon: canvas.toDataURL('image/png'),
           },
-          (result) => {
+          async (result) => {
             try {
               const cbResult = JSON.parse(result);
-              new window.__TAURI__.window.WebviewWindow('second', {
-                width: dragger.clientWidth,
-                height: dragger.clientHeight,
-                x: cbResult.cursorPos.x,
-                y: cbResult.cursorPos.y,
-              });
+
+              /* Create window by template HTML, and use event to exchange required info */
+              // createWindowByHtmlTemplate(el, cbResult);
+
+              /* Create window by DOM, could lose CSS and JS */
+              createWindowByDom(el, cbResult);
+
+              el.remove();
             } catch (e) {
               console.error(e);
             }
           }
         );
-      };
+      }
+
+      function createWindowByDom(el, cbResult) {
+        new window.__TAURI__.window.WebviewWindow(el.id, {
+          url: `data:text/html,${el.outerHTML}`,
+          title: `New Window ${el.id}`,
+          width: el.clientWidth,
+          height: el.clientHeight + 20, // 20: titlebar height
+          x: cbResult.cursorPos.x,
+          y: cbResult.cursorPos.y,
+        });
+      }
+      function createWindowByHtmlTemplate(el, cbResult) {
+        const newWindow = new window.__TAURI__.window.WebviewWindow(el.id, {
+          url: 'new_window.html',
+          title: `New Window ${el.id}`,
+          width: el.clientWidth,
+          height: el.clientHeight + 20, // 20: titlebar height
+          x: cbResult.cursorPos.x,
+          y: cbResult.cursorPos.y,
+        });
+        window.__TAURI__.event.once(`loaded-${el.id}`, (_event) => {
+          window.__TAURI__.event.emit(`init-${el.id}`, {
+            id: el.id,
+          });
+        });
+      }
     </script>
   </body>
 </html>
