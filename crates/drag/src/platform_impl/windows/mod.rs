@@ -4,7 +4,7 @@
 
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{DragItem, DragResult, Image};
+use crate::{CursorPosition, DragItem, DragResult, Image};
 
 use std::{
     ffi::c_void,
@@ -23,9 +23,12 @@ use windows::{
         System::Ole::{DoDragDrop, OleInitialize},
         System::Ole::{IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY},
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
-        UI::Shell::{
-            BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
-            SHCreateDataObject, SHCreateShellItemArrayFromIDLists, DROPFILES, SHDRAGIMAGE,
+        UI::{
+            Shell::{
+                BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
+                SHCreateDataObject, SHCreateShellItemArrayFromIDLists, DROPFILES, SHDRAGIMAGE,
+            },
+            WindowsAndMessaging::{GetCursorPos, GetPhysicalCursorPos},
         },
     },
 };
@@ -183,7 +186,7 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
@@ -223,17 +226,20 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                         DROPEFFECT_COPY,
                         &mut out_dropeffect,
                     );
-
+                    let mut pt = POINT { x: 0, y: 0 };
+                    GetCursorPos(&mut pt)?;
                     if drop_result == DRAGDROP_S_DROP {
-                        on_drop_callback(DragResult::Dropped);
+                        on_drop_callback(DragResult::Dropped, CursorPosition { x: pt.x, y: pt.y });
                     } else {
                         // DRAGDROP_S_CANCEL
-                        on_drop_callback(DragResult::Cancel);
+                        on_drop_callback(DragResult::Cancel, CursorPosition { x: pt.x, y: pt.y });
                     }
                 }
             }
             DragItem::Data { .. } => {
-                on_drop_callback(DragResult::Cancel);
+                let mut pt = POINT { x: 0, y: 0 };
+                unsafe { GetCursorPos(&mut pt)? };
+                on_drop_callback(DragResult::Cancel, CursorPosition { x: pt.x, y: pt.y });
                 return Ok(());
             }
         }
