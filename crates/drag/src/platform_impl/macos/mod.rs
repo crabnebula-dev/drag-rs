@@ -9,6 +9,7 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSArray, NSData, NSPoint, NSRect, NSSize, NSUInteger},
 };
+use core_graphics::display::CGDisplay;
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Protocol, Sel, NO, YES},
@@ -251,7 +252,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
 
                             let mouse_location = CursorPosition {
                                 x: ended_at_point.x as i32,
-                                y: ended_at_point.y as i32,
+                                y: CGDisplay::main().pixels_high() as i32 - ended_at_point.y as i32,
                             };
 
                             let callback_closure =

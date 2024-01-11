@@ -119,15 +119,12 @@ fn main() -> wry::Result<()> {
                     },
                     #[cfg(not(target_os = "linux"))]
                     &webview.window(),
-                    DragItem::Files(vec![
-                        std::fs::canonicalize("./examples/icon.png").unwrap(),
-                        std::fs::canonicalize("./examples/icon.bmp").unwrap(),
-                    ]),
+                    DragItem::Data {
+                        provider: Box::new(|_| Some(Vec::new())),
+                        types: vec!["com.app.myapp.v2".into()],
+                    },
                     icon,
                     move |result: DragResult, cursor_pos: CursorPosition| {
-                        #[cfg(target_os = "macos")]
-                        let cursor_pos = macos_to_top_left_coordinate(cursor_pos);
-
                         println!(
                             "--> Drop Result: [{:?}], Cursor Pos:[{:?}]",
                             result, cursor_pos
@@ -235,13 +232,4 @@ fn create_new_window(
         .build()?;
 
     Ok(webview)
-}
-
-#[cfg(target_os = "macos")]
-fn macos_to_top_left_coordinate(position: CursorPosition) -> CursorPosition {
-    use core_graphics::display::CGDisplay;
-    CursorPosition {
-        x: position.x,
-        y: CGDisplay::main().pixels_high() as i32 - position.y,
-    }
 }
