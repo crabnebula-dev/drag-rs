@@ -222,9 +222,14 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
                     extern "C" fn dragging_session(
                         _this: &Object,
                         _: Sel,
-                        _dragging_session: id,
+                        dragging_session: id,
                         context: NSUInteger,
                     ) -> NSUInteger {
+                        // Disable animation on cancel
+                        unsafe {
+                            let () = msg_send![dragging_session, setAnimatesToStartingPositionsOnCancelOrFail: NO];
+                        }
+
                         if context == 0 {
                             // NSDragOperationCopy
                             1
@@ -244,7 +249,6 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
                         unsafe {
                             let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
 
-                            // FIXME: position is upside down
                             let mouse_location = CursorPosition {
                                 x: ended_at_point.x as i32,
                                 y: ended_at_point.y as i32,
