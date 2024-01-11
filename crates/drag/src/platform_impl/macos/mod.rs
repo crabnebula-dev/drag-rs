@@ -15,7 +15,7 @@ use objc::{
 };
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{DragItem, DragResult, Image};
+use crate::{CursorPosition, DragItem, DragResult, Image};
 
 const UTF8_ENCODING: usize = 4;
 
@@ -49,7 +49,7 @@ impl NSString {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
@@ -238,18 +238,25 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                         this: &Object,
                         _: Sel,
                         _dragging_session: id,
-                        _ended_at_point: NSPoint,
+                        ended_at_point: NSPoint,
                         operation: NSUInteger,
                     ) {
                         unsafe {
                             let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
 
-                            let callback_closure = &*(*callback as *mut Box<dyn Fn(DragResult)>);
+                            // FIXME: position is upside down
+                            let mouse_location = CursorPosition {
+                                x: ended_at_point.x as i32,
+                                y: ended_at_point.y as i32,
+                            };
+
+                            let callback_closure =
+                                &*(*callback as *mut Box<dyn Fn(DragResult, CursorPosition)>);
                             if operation == 0 {
                                 // NSDragOperationNone
-                                callback_closure(DragResult::Cancel);
+                                callback_closure(DragResult::Cancel, mouse_location);
                             } else {
-                                callback_closure(DragResult::Dropped);
+                                callback_closure(DragResult::Dropped, mouse_location);
                             }
 
                             drop(Box::from_raw(*callback as *mut Box<dyn Fn(DragResult)>));
@@ -264,7 +271,8 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
             let source: id = msg_send![cls, alloc];
             let source: id = msg_send![source, init];
 
-            let on_drop_callback = Box::new(on_drop_callback) as Box<dyn Fn(DragResult) + Send>;
+            let on_drop_callback =
+                Box::new(on_drop_callback) as Box<dyn Fn(DragResult, CursorPosition) + Send>;
             let callback_ptr = Box::into_raw(Box::new(on_drop_callback));
             (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
 

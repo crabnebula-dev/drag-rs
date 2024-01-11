@@ -4,6 +4,7 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::channel};
 
+use drag::CursorPosition;
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use tauri::{
     api::ipc::CallbackFn,
@@ -111,7 +112,7 @@ async fn start_drag<R: Runtime>(
 
         let r = match raw_window {
             Ok(w) => drag::start_drag(
-                &w,
+                &w.clone(),
                 match item {
                     DragItem::Files(f) => drag::DragItem::Files(f),
                     DragItem::Data { data, types } => drag::DragItem::Data {
@@ -124,6 +125,9 @@ async fn start_drag<R: Runtime>(
                 },
                 image,
                 move |result, cursor_pos| {
+                    #[cfg(target_os = "macos")]
+                    let cursor_pos = to_macos_coordinate(&w, cursor_pos);
+
                     if let Some(on_event_fn) = on_event_fn {
                         let callback_result = CallbackResult { result, cursor_pos };
                         let js = tauri::api::ipc::format_callback(
@@ -143,6 +147,28 @@ async fn start_drag<R: Runtime>(
     })?;
 
     rx.recv().unwrap()
+}
+
+#[cfg(target_os = "macos")]
+fn to_macos_coordinate<R: Runtime>(window: &Window<R>, position: CursorPosition) -> CursorPosition {
+    use cocoa::base::id;
+    use core_graphics::geometry::CGRect;
+    use objc::{msg_send, sel, sel_impl};
+    use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+
+    unsafe {
+        if let RawWindowHandle::AppKit(w) = window.raw_window_handle() {
+            let window = w.ns_window as id;
+            let screen: id /* NSScreen */ = msg_send![window, screen];
+            let frame: CGRect = objc::msg_send![screen, frame];
+            CursorPosition {
+                x: position.x,
+                y: frame.size.height as i32 - position.y,
+            }
+        } else {
+            position
+        }
+    }
 }
 
 /// Initializes the plugin.
