@@ -6,6 +6,7 @@ use base64::Engine;
 use drag::{start_drag, CursorPosition, DragItem, DragResult, Image};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
+use wry::application::dpi::LogicalPosition;
 use wry::application::event_loop::EventLoopWindowTarget;
 use wry::application::window::WindowId;
 use wry::webview::WebViewBuilder;
@@ -23,7 +24,7 @@ enum UserEvent {
     StartDrag(WindowId, Option<drag::Image>),
     CloseWindow(WindowId),
     NewTitle(WindowId, String),
-    NewWindow,
+    NewWindow(CursorPosition),
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,6 +62,7 @@ fn main() -> wry::Result<()> {
         String::from("Drag Example - First Window"),
         &event_loop,
         proxy.clone(),
+        None,
     )?;
     webviews.insert(webview.window().id(), webview);
 
@@ -78,11 +80,12 @@ fn main() -> wry::Result<()> {
                     *control_flow = ControlFlow::Exit
                 }
             }
-            Event::UserEvent(UserEvent::NewWindow) => {
+            Event::UserEvent(UserEvent::NewWindow(cursor_pos)) => {
                 let webview = create_new_window(
                     format!("Window {}", webviews.len() + 1),
                     event_loop,
                     proxy.clone(),
+                    Some(cursor_pos),
                 )
                 .unwrap();
                 webviews.insert(webview.window().id(), webview);
@@ -122,11 +125,14 @@ fn main() -> wry::Result<()> {
                     ]),
                     icon,
                     move |result: DragResult, cursor_pos: CursorPosition| {
+                        #[cfg(target_os = "macos")]
+                        let cursor_pos = macos_to_top_left_coordinate(cursor_pos);
+
                         println!(
                             "--> Drop Result: [{:?}], Cursor Pos:[{:?}]",
                             result, cursor_pos
                         );
-                        let _ = proxy.send_event(UserEvent::NewWindow);
+                        let _ = proxy.send_event(UserEvent::NewWindow(cursor_pos));
                     },
                 )
                 .unwrap();
@@ -140,6 +146,7 @@ fn create_new_window(
     title: String,
     event_loop: &EventLoopWindowTarget<UserEvent>,
     proxy: EventLoopProxy<UserEvent>,
+    position: Option<CursorPosition>,
 ) -> wry::Result<WebView> {
     const HTML: &str = r#"
 <!DOCTYPE html>
@@ -190,10 +197,15 @@ fn create_new_window(
 </html>
   "#;
 
-    let window = WindowBuilder::new()
+    let mut window_builder = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(400., 100.))
-        .with_title(title)
-        .build(event_loop)?;
+        .with_title(title);
+
+    if let Some(position) = position {
+        window_builder = window_builder.with_position(LogicalPosition::new(position.x, position.y));
+    }
+
+    let window = window_builder.build(event_loop)?;
     let window_id = window.id();
 
     let handler = move |_w: &Window, req: String| {
@@ -208,15 +220,8 @@ fn create_new_window(
             }
         } else {
             match req.as_str() {
-                "new-window" => {
-                    let _ = proxy.send_event(UserEvent::NewWindow);
-                }
                 "close" => {
                     let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
-                }
-                _ if req.starts_with("change-title") => {
-                    let title = req.replace("change-title:", "");
-                    let _ = proxy.send_event(UserEvent::NewTitle(window_id, title));
                 }
                 _ => {}
             }
@@ -230,4 +235,13 @@ fn create_new_window(
         .build()?;
 
     Ok(webview)
+}
+
+#[cfg(target_os = "macos")]
+fn macos_to_top_left_coordinate(position: CursorPosition) -> CursorPosition {
+    use core_graphics::display::CGDisplay;
+    CursorPosition {
+        x: position.x,
+        y: CGDisplay::main().pixels_high() as i32 - position.y,
+    }
 }
