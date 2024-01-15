@@ -125,9 +125,6 @@ async fn start_drag<R: Runtime>(
                 },
                 image,
                 move |result, cursor_pos| {
-                    #[cfg(target_os = "macos")]
-                    let cursor_pos = macos_to_top_left_coordinate(cursor_pos);
-
                     if let Some(on_event_fn) = on_event_fn {
                         let callback_result = CallbackResult { result, cursor_pos };
                         let js = tauri::api::ipc::format_callback(
@@ -147,15 +144,6 @@ async fn start_drag<R: Runtime>(
     })?;
 
     rx.recv().unwrap()
-}
-
-#[cfg(target_os = "macos")]
-fn macos_to_top_left_coordinate(position: CursorPosition) -> CursorPosition {
-    use core_graphics::display::CGDisplay;
-    CursorPosition {
-        x: position.x,
-        y: CGDisplay::main().pixels_high() as i32 - position.y,
-    }
 }
 
 /// Initializes the plugin.
