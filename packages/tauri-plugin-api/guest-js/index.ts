@@ -19,6 +19,11 @@ export interface Options {
   icon: string;
 }
 
+export interface CallbackPayload {
+  result: DragResult;
+  cursorPos: CursorPosition;
+}
+
 /**
  * Starts a drag operation. Can either send a list of files or data to another app.
  *
@@ -50,7 +55,7 @@ export interface Options {
  */
 export async function startDrag(
   options: Options,
-  onEvent?: (result: DragResult, cursorPos: CursorPosition) => void
+  onEvent?: (result: CallbackPayload) => void
 ): Promise<void> {
   await invoke("plugin:drag|start_drag", {
     item: options.item,
