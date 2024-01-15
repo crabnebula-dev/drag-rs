@@ -45,7 +45,8 @@
 
       window.__TAURI__.window.appWindow.onFileDropEvent((event) => {
         if (event.payload.type === 'drop') {
-          const id = event.payload.paths[0].split('/').pop();
+          const path = event.payload.paths[0].replaceAll('\\', '/');
+          const id = path.split('/').pop();
           appendItem(id);
         }
       });

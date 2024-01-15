@@ -20,7 +20,8 @@
         "../icon.ico"
       ],
       "resources": [
-        "../icon.png"
+        "../icon.png",
+        "./dummy"
       ]
     },
     "windows": [
