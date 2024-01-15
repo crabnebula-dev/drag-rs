@@ -23,6 +23,8 @@
     <div>
       <input id="fcp" type="checkbox" />
       <label for="fcp">FCP</label>
+      <input id="create-window" type="checkbox" />
+      <label for="create-window">Custom Window</label>
     </div>
     <div id="drop-zone" class="drag-zone"></div>
     <script type="text/javascript">
@@ -38,6 +40,8 @@
           <!-- Clips -->
           <asset-clip name="MyMovie1" ref="r2" format="r1" start="0s" duration="10s" audioRole="dialogue"/>
       </fcpxml>`;
+
+      const createWindowEl = document.getElementById('create-window');
 
       appendItem('drag-1');
       appendItem('drag-2');
@@ -77,6 +81,11 @@
                 // 'com.apple.finalcutpro.xml.v1-9',
                 // 'com.apple.finalcutpro.xml',
               ],
+            }
+          : createWindowEl.checked
+          ? {
+              data: '',
+              types: ['new.window.type'],
             }
           : [path];
 
