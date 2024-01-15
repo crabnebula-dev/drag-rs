@@ -17,7 +17,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-pub fn start_drag<F: Fn(DragResult, CursorPosition) -> bool + Send + 'static>(
+pub fn start_drag<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     window: &gtk::ApplicationWindow,
     item: DragItem,
     image: Image,
@@ -97,7 +97,7 @@ fn clear_signal_handlers(window: &gtk::ApplicationWindow, handler_ids: &mut Vec<
     }
 }
 
-fn on_drop_failed<F: Fn(DragResult, CursorPosition) -> bool + Send + 'static>(
+fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
@@ -109,13 +109,24 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) -> bool + Send + 'static>(
         .lock()
         .unwrap()
         .push(window.connect_drag_failed(move |_, _, drag_result| {
-            let result = match drag_result {
-                gtk::DragResult::NoTarget => DragResult::NoTarget,
-                _ => DragResult::Cancel,
+            let inhibit = match drag_result {
+                gtk::DragResult::NoTarget => {
+                    callback(
+                        DragResult::NoTarget,
+                        get_cursor_position(&window_clone).unwrap(),
+                    );
+                    Inhibit(true)
+                }
+                _ => {
+                    callback(
+                        DragResult::Cancel,
+                        get_cursor_position(&window_clone).unwrap(),
+                    );
+                    Inhibit(false)
+                }
             };
             cleanup_signal_handlers(&handler_ids_clone, &window_clone);
-            let inhibit = callback(result, get_cursor_position(&window_clone).unwrap());
-            Inhibit(inhibit)
+            inhibit
         }));
 }
 
@@ -128,7 +139,7 @@ fn cleanup_signal_handlers(
     window.drag_source_unset();
 }
 
-fn on_drop_performed<F: Fn(DragResult, CursorPosition) -> bool + Send + 'static>(
+fn on_drop_performed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
