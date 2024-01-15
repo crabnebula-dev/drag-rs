@@ -16,6 +16,7 @@
         -webkit-user-select: none;
       }
     </style>
+    <script src="html2canvas.min.js"></script>
   </head>
 
   <body>
@@ -38,6 +39,30 @@
         dragEl.className = 'drag-item';
         dragEl.innerText = `Drag me ${event.payload.id}`;
         dropZoneEl.appendChild(dragEl);
+
+        dragEl.ondragstart = dragHandler;
+      }
+
+      async function dragHandler(event) {
+        event.preventDefault();
+
+        const el = event.target;
+        const canvas = await html2canvas(el, { logging: false });
+        const path = await window.__TAURI__.path.resolveResource(
+          `dummy/${el.id}`
+        );
+
+        const dragItem = [path];
+
+        window.__TAURI__.drag.startDrag(
+          {
+            item: dragItem,
+            icon: canvas.toDataURL('image/png'),
+          },
+          async (_) => {
+            window.__TAURI__.window.appWindow.close();
+          }
+        );
       }
     </script>
   </body>

@@ -27,7 +27,8 @@
       {
         "title": "Drag",
         "width": 400,
-        "height": 300
+        "height": 300,
+        "fileDropEnabled": true
       }
     ],
     "allowlist": {
@@ -35,7 +36,8 @@
         "all": true
       },
       "window": {
-        "create": true
+        "create": true,
+        "close": true
       }
     }
   }

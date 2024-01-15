@@ -16,6 +16,7 @@
         -webkit-user-select: none;
       }
     </style>
+    <script src="html2canvas.min.js"></script>
   </head>
 
   <body>
@@ -23,12 +24,7 @@
       <input id="fcp" type="checkbox" />
       <label for="fcp">FCP</label>
     </div>
-    <div id="drop-zone" class="drag-zone">
-      <div draggable="true" class="drag-item" id="drag-1">Drag me 1</div>
-      <div draggable="true" class="drag-item" id="drag-2">Drag me 2</div>
-      <div draggable="true" class="drag-item" id="drag-3">Drag me 3</div>
-    </div>
-    <script src="html2canvas.min.js"></script>
+    <div id="drop-zone" class="drag-zone"></div>
     <script type="text/javascript">
       const fcpInput = document.getElementById('fcp');
       const fcpXml = `<fcpxml version="1.10">
@@ -43,13 +39,27 @@
           <asset-clip name="MyMovie1" ref="r2" format="r1" start="0s" duration="10s" audioRole="dialogue"/>
       </fcpxml>`;
 
-      const drag1 = document.getElementById('drag-1');
-      const drag2 = document.getElementById('drag-2');
-      const drag3 = document.getElementById('drag-3');
+      appendItem('drag-1');
+      appendItem('drag-2');
+      appendItem('drag-3');
 
-      drag1.ondragstart = dragHandler;
-      drag2.ondragstart = dragHandler;
-      drag3.ondragstart = dragHandler;
+      window.__TAURI__.window.appWindow.onFileDropEvent((event) => {
+        if (event.payload.type === 'drop') {
+          const id = event.payload.paths[0].split('/').pop();
+          appendItem(id);
+        }
+      });
+
+      function appendItem(id) {
+        const dropZoneEl = document.getElementById('drop-zone');
+        const dragEl = document.createElement('div');
+        dragEl.setAttribute('draggable', 'true');
+        dragEl.id = id;
+        dragEl.className = 'drag-item';
+        dragEl.innerText = `Drag me ${id}`;
+        dropZoneEl.appendChild(dragEl);
+        dragEl.ondragstart = dragHandler;
+      }
 
       async function dragHandler(event) {
         event.preventDefault();
@@ -79,10 +89,10 @@
               const cbResult = JSON.parse(result);
 
               /* Create window by template HTML, and use event to exchange required info */
-              // createWindowByHtmlTemplate(el, cbResult);
+              createWindowByHtmlTemplate(el, cbResult);
 
               /* Create window by DOM, could lose CSS and JS */
-              createWindowByDom(el, cbResult);
+              // createWindowByDom(el, cbResult);
 
               el.remove();
             } catch (e) {
