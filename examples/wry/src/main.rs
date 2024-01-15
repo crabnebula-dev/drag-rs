@@ -216,11 +216,8 @@ fn create_new_window(
                 let _ = proxy.send_event(UserEvent::StartDrag(window_id, Some(icon)));
             }
         } else {
-            match req.as_str() {
-                "close" => {
-                    let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
-                }
-                _ => {}
+            if req.as_str() == "close" {
+                let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
             }
         }
     };

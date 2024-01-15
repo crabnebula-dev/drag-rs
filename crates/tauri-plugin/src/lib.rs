@@ -4,7 +4,6 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::channel};
 
-use drag::CursorPosition;
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use tauri::{
     api::ipc::CallbackFn,
