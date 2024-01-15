@@ -4,7 +4,6 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::channel};
 
-use drag::CursorPosition;
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
 use tauri::{
     api::ipc::CallbackFn,
@@ -80,7 +79,7 @@ enum SharedData {
 }
 
 #[derive(Serialize)]
-struct CallbackResult {
+struct CallbackPayload {
     result: drag::DragResult,
     #[serde(rename = "cursorPos")]
     cursor_pos: drag::CursorPosition,
@@ -126,15 +125,16 @@ async fn start_drag<R: Runtime>(
                 image,
                 move |result, cursor_pos| {
                     if let Some(on_event_fn) = on_event_fn {
-                        let callback_result = CallbackResult { result, cursor_pos };
+                        let payload = CallbackPayload { result, cursor_pos };
                         let js = tauri::api::ipc::format_callback(
                             on_event_fn,
-                            &serde_json::to_string(&callback_result).unwrap(),
+                            &serde_json::to_string(&payload).unwrap(),
                         )
                         .expect("unable to serialize DragResult");
 
                         let _ = window.eval(js.as_str());
                     }
+                    false
                 },
             )
             .map_err(Into::into),

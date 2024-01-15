@@ -1,10 +1,10 @@
-import { invoke, transformCallback } from "@tauri-apps/api/tauri";
+import { invoke, transformCallback } from '@tauri-apps/api/tauri';
 
 export type DragItem =
   | string[]
   | { data: string | Record<string, string>; types: string[] };
 
-export type DragResult = "Dropped" | "Cancelled";
+export type DragResult = 'Dropped' | 'Cancelled';
 
 /**
  * Logical position of the cursor.
@@ -17,6 +17,11 @@ export interface CursorPosition {
 export interface Options {
   item: DragItem;
   icon: string;
+}
+
+export interface CallbackPayload {
+  result: DragResult;
+  cursorPos: CursorPosition;
 }
 
 /**
@@ -50,9 +55,9 @@ export interface Options {
  */
 export async function startDrag(
   options: Options,
-  onEvent?: (result: DragResult, cursorPos: CursorPosition) => void
+  onEvent?: (payload: CallbackPayload) => void
 ): Promise<void> {
-  await invoke("plugin:drag|start_drag", {
+  await invoke('plugin:drag|start_drag', {
     item: options.item,
     image: options.icon,
     onEventFn: onEvent ? transformCallback(onEvent) : null,
