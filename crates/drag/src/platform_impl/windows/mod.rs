@@ -28,7 +28,7 @@ use windows::{
                 BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
                 SHCreateDataObject, SHCreateShellItemArrayFromIDLists, DROPFILES, SHDRAGIMAGE,
             },
-            WindowsAndMessaging::{GetCursorPos, GetPhysicalCursorPos},
+            WindowsAndMessaging::GetCursorPos,
         },
     },
 };
