@@ -1,0 +1,45 @@
+{
+  "build": {
+    "distDir": [
+      "./index.html",
+      "./new_window.html",
+      "./html2canvas.min.js"
+    ],
+    "devPath": [
+      "./index.html",
+      "./new_window.html",
+      "./html2canvas.min.js"
+    ],
+    "withGlobalTauri": true
+  },
+  "tauri": {
+    "bundle": {
+      "identifier": "dev.crabnebula.drag",
+      "icon": [
+        "../icon.png",
+        "../icon.ico"
+      ],
+      "resources": [
+        "../icon.png",
+        "./dummy"
+      ]
+    },
+    "windows": [
+      {
+        "title": "Drag",
+        "width": 400,
+        "height": 300,
+        "fileDropEnabled": true
+      }
+    ],
+    "allowlist": {
+      "path": {
+        "all": true
+      },
+      "window": {
+        "create": true,
+        "close": true
+      }
+    }
+  }
+}
