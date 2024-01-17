@@ -1,5 +1,5 @@
 [package]
-name = "tauri-app"
+name = "tauri-app-dragout"
 version = "0.0.0"
 publish = false
 edition = "2021"
