@@ -1,15 +1,7 @@
 {
   "build": {
-    "distDir": [
-      "./index.html",
-      "./new_window.html",
-      "./html2canvas.min.js"
-    ],
-    "devPath": [
-      "./index.html",
-      "./new_window.html",
-      "./html2canvas.min.js"
-    ],
+    "distDir": "./index.html",
+    "devPath": "./index.html",
     "withGlobalTauri": true
   },
   "tauri": {
@@ -19,26 +11,18 @@
         "../icon.png",
         "../icon.ico"
       ],
-      "resources": [
-        "../icon.png",
-        "./dummy"
-      ]
+      "resources": ["../icon.png"]
     },
     "windows": [
       {
         "title": "Drag",
         "width": 400,
-        "height": 300,
-        "fileDropEnabled": true
+        "height": 100
       }
     ],
     "allowlist": {
       "path": {
         "all": true
-      },
-      "window": {
-        "create": true,
-        "close": true
       }
     }
   }

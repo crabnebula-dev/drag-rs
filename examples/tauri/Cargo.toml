@@ -8,10 +8,5 @@ edition = "2021"
 tauri-build = "1"
 
 [dependencies]
-tauri = { version = "1", features = [
-  "path-all",
-  "window-create",
-  "window-data-url",
-  "window-close",
-] }
+tauri = { version = "1", features = [ "path-all"] }
 tauri-plugin-drag = { path = "../../crates/tauri-plugin/" }
