@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use drag::{start_drag, DragItem, DragResult, Image};
+use drag::{start_drag, DragItem, DragResult, Image, CursorPosition};
 use wry::application::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
@@ -97,7 +97,7 @@ fn main() -> wry::Result<()> {
                         ]),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("./examples/icon.png".into()),
-                        |result: DragResult| {
+                        |result: DragResult, _cursor_pos: CursorPosition| {
                             println!("--> Drop Result: [{:?}]", result);
                         },
                     )
