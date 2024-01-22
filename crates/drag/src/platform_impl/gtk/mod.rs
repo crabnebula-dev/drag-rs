@@ -43,8 +43,8 @@ pub fn start_drag<F: Fn(DragResult, CursorPosition) + Send + 'static>(
                 }));
         }
         DragItem::Data { .. } => {
-            on_drop_callback(DragResult::Cancel, get_cursor_position(window).unwrap());
-            return Ok(());
+            // on_drop_callback(DragResult::Cancel, get_cursor_position(window).unwrap());
+            // return Ok(());
         }
     }
 
