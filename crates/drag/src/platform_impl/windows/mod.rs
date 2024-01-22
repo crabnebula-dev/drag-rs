@@ -56,6 +56,9 @@ struct DataObject {
 #[implement(IDropSource)]
 struct DropSource(());
 
+#[implement(IDropSource)]
+struct DummyDropSource(());
+
 impl DropSource {
     fn new() -> Self {
         Self(())
@@ -69,6 +72,29 @@ impl IDropSource_Impl for DropSource {
             DRAGDROP_S_CANCEL
         } else if (grfkeystate & MK_LBUTTON) == MODIFIERKEYS_FLAGS(0) {
             DRAGDROP_S_DROP
+        } else {
+            S_OK
+        }
+    }
+
+    fn GiveFeedback(&self, _dweffect: DROPEFFECT) -> HRESULT {
+        DRAGDROP_S_USEDEFAULTCURSORS
+    }
+}
+
+impl DummyDropSource {
+    fn new() -> Self {
+        Self(())
+    }
+}
+
+#[allow(non_snake_case)]
+impl IDropSource_Impl for DummyDropSource {
+    fn QueryContinueDrag(&self, fescapepressed: BOOL, grfkeystate: MODIFIERKEYS_FLAGS) -> HRESULT {
+        if fescapepressed.as_bool() {
+            DRAGDROP_S_CANCEL
+        } else if (grfkeystate & MK_LBUTTON) == MODIFIERKEYS_FLAGS(0) {
+            DRAGDROP_S_CANCEL
         } else {
             S_OK
         }
@@ -237,10 +263,44 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
                 }
             }
             DragItem::Data { .. } => {
-                let mut pt = POINT { x: 0, y: 0 };
-                unsafe { GetCursorPos(&mut pt)? };
-                on_drop_callback(DragResult::Cancel, CursorPosition { x: pt.x, y: pt.y });
-                return Ok(());
+                init_ole();
+                unsafe {
+                    if let Err(e) = &OLE_RESULT {
+                        return Err(e.clone().into());
+                    }
+                }
+
+                let mut paths = Vec::new();
+                paths.push(dunce::canonicalize("./")?);
+
+                let data_object: IDataObject = get_file_data_object(&paths).unwrap();
+                let drop_source: IDropSource = DummyDropSource::new().into();
+
+                unsafe {
+                    if let Some(drag_image) = get_drag_image(image) {
+                        if let Ok(helper) =
+                            create_instance::<IDragSourceHelper>(&CLSID_DragDropHelper)
+                        {
+                            let _ = helper.InitializeFromBitmap(&drag_image, &data_object);
+                        }
+                    }
+
+                    let mut out_dropeffect = DROPEFFECT::default();
+                    let drop_result = DoDragDrop(
+                        &data_object,
+                        &drop_source,
+                        DROPEFFECT_COPY,
+                        &mut out_dropeffect,
+                    );
+                    let mut pt = POINT { x: 0, y: 0 };
+                    GetCursorPos(&mut pt)?;
+                    if drop_result == DRAGDROP_S_DROP {
+                        on_drop_callback(DragResult::Dropped, CursorPosition { x: pt.x, y: pt.y });
+                    } else {
+                        // DRAGDROP_S_CANCEL
+                        on_drop_callback(DragResult::Cancel, CursorPosition { x: pt.x, y: pt.y });
+                    }
+                }
             }
         }
         Ok(())
