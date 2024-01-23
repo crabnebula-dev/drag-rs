@@ -120,6 +120,7 @@ fn main() -> wry::Result<()> {
                         );
                         let _ = proxy.send_event(UserEvent::NewWindow(cursor_pos));
                     },
+                    Default::default(),
                 )
                 .unwrap();
             }

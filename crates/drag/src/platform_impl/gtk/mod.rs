@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use crate::{CursorPosition, DragItem, DragResult, Error, Image};
+use crate::{CursorPosition, DragItem, DragResult, Error, Image, Options};
 use gdkx11::{
     gdk,
     glib::{ObjectExt, SignalHandlerId},
@@ -22,6 +22,7 @@ pub fn start_drag<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     item: DragItem,
     image: Image,
     on_drop_callback: F,
+    options: Options,
 ) -> crate::Result<()> {
     let handler_ids: Arc<Mutex<Vec<SignalHandlerId>>> = Arc::new(Mutex::new(vec![]));
 
@@ -58,7 +59,7 @@ pub fn start_drag<F: Fn(DragResult, CursorPosition) + Send + 'static>(
             -1,
         ) {
             let callback = Rc::new(on_drop_callback);
-            on_drop_failed(callback.clone(), window, &handler_ids);
+            on_drop_failed(callback.clone(), window, &handler_ids, &options);
             on_drop_performed(callback.clone(), window, &handler_ids, &drag_context);
 
             let icon_pixbuf: Option<gdk_pixbuf::Pixbuf> = match &image {
@@ -101,32 +102,27 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
+    options: &Options,
 ) {
     let window_clone = window.clone();
     let handler_ids_clone = handler_ids.clone();
+
+    let skip_animatation_on_cancel_or_failure = options.skip_animatation_on_cancel_or_failure;
 
     handler_ids
         .lock()
         .unwrap()
         .push(window.connect_drag_failed(move |_, _, drag_result| {
-            let inhibit = match drag_result {
-                gtk::DragResult::NoTarget => {
-                    callback(
-                        DragResult::NoTarget,
-                        get_cursor_position(&window_clone).unwrap(),
-                    );
-                    Inhibit(true)
-                }
-                _ => {
-                    callback(
-                        DragResult::Cancel,
-                        get_cursor_position(&window_clone).unwrap(),
-                    );
-                    Inhibit(false)
-                }
-            };
+            callback(
+                match drag_result {
+                    gtk::DragResult::NoTarget => DragResult::NoTarget,
+                    _ => DragResult::Cancel,
+                },
+                get_cursor_position(&window_clone).unwrap(),
+            );
+
             cleanup_signal_handlers(&handler_ids_clone, &window_clone);
-            inhibit
+            Inhibit(skip_animatation_on_cancel_or_failure)
         }));
 }
 

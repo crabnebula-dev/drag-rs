@@ -4,7 +4,7 @@
 
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{CursorPosition, DragItem, DragResult, Image};
+use crate::{CursorPosition, DragItem, DragResult, Image, Options};
 
 use std::{
     ffi::c_void,
@@ -217,6 +217,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
     item: DragItem,
     image: Image,
     on_drop_callback: F,
+    _options: Options,
 ) -> crate::Result<()> {
     if let RawWindowHandle::Win32(_w) = handle.raw_window_handle() {
         match item {

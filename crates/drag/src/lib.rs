@@ -137,6 +137,11 @@ pub enum DragItem {
     },
 }
 
+#[derive(Default)]
+pub struct Options {
+    pub skip_animatation_on_cancel_or_failure: bool,
+}
+
 /// An image definition.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]

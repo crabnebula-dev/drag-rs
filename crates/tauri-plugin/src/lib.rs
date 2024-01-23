@@ -135,6 +135,7 @@ async fn start_drag<R: Runtime>(
                         let _ = window.eval(js.as_str());
                     }
                 },
+                Default::default(),
             )
             .map_err(Into::into),
             Err(e) => Err(e.into()),

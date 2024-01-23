@@ -56,6 +56,7 @@ fn main() {
                                 result, cursor_pos
                             );
                         },
+                        Default::default(),
                     )
                     .unwrap();
                 }

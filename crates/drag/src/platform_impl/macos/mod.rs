@@ -12,11 +12,11 @@ use cocoa::{
 use core_graphics::display::CGDisplay;
 use objc::{
     declare::ClassDecl,
-    runtime::{Class, Object, Protocol, Sel, NO, YES},
+    runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
 };
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{CursorPosition, DragItem, DragResult, Image};
+use crate::{CursorPosition, DragItem, DragResult, Image, Options};
 
 const UTF8_ENCODING: usize = 4;
 
@@ -55,6 +55,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
     item: DragItem,
     image: Image,
     on_drop_callback: F,
+    options: Options,
 ) -> crate::Result<()> {
     if let RawWindowHandle::AppKit(w) = handle.raw_window_handle() {
         unsafe {
@@ -209,6 +210,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
             let cls = match cls {
                 Some(mut cls) => {
                     cls.add_ivar::<*mut c_void>("on_drop_ptr");
+                    cls.add_ivar::<BOOL>("animate_on_cancel_or_failure");
                     cls.add_method(
                         sel!(draggingSession:sourceOperationMaskForDraggingContext:),
                         dragging_session
@@ -221,14 +223,14 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
                     );
 
                     extern "C" fn dragging_session(
-                        _this: &Object,
+                        this: &Object,
                         _: Sel,
                         dragging_session: id,
                         context: NSUInteger,
                     ) -> NSUInteger {
-                        // Disable animation on cancel
                         unsafe {
-                            let () = msg_send![dragging_session, setAnimatesToStartingPositionsOnCancelOrFail: NO];
+                            let animates = this.get_ivar::<BOOL>("animate_on_cancel_or_failure");
+                            let () = msg_send![dragging_session, setAnimatesToStartingPositionsOnCancelOrFail: animates];
                         }
 
                         if context == 0 {
@@ -280,6 +282,10 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
                 Box::new(on_drop_callback) as Box<dyn Fn(DragResult, CursorPosition) + Send>;
             let callback_ptr = Box::into_raw(Box::new(on_drop_callback));
             (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
+            (*source).set_ivar(
+                "animate_on_cancel_or_failure",
+                !options.skip_animatation_on_cancel_or_failure,
+            );
 
             let _: () = msg_send![ns_view, beginDraggingSessionWithItems: dragging_items event: drag_event source: source];
         }
