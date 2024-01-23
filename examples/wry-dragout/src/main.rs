@@ -22,8 +22,6 @@ use wry::{
 
 enum UserEvent {
     StartDrag(WindowId, Option<drag::Image>),
-    CloseWindow(WindowId),
-    NewTitle(WindowId, String),
     NewWindow(CursorPosition),
 }
 
@@ -89,15 +87,6 @@ fn main() -> wry::Result<()> {
                 )
                 .unwrap();
                 webviews.insert(webview.window().id(), webview);
-            }
-            Event::UserEvent(UserEvent::CloseWindow(id)) => {
-                webviews.remove(&id);
-                if webviews.is_empty() {
-                    *control_flow = ControlFlow::Exit
-                }
-            }
-            Event::UserEvent(UserEvent::NewTitle(id, title)) => {
-                webviews.get(&id).unwrap().window().set_title(&title);
             }
             Event::UserEvent(UserEvent::StartDrag(id, icon)) => {
                 let webview = &webviews.get(&id).unwrap();
@@ -214,10 +203,6 @@ fn create_new_window(
                         .unwrap(),
                 );
                 let _ = proxy.send_event(UserEvent::StartDrag(window_id, Some(icon)));
-            }
-        } else {
-            if req.as_str() == "close" {
-                let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
             }
         }
     };
