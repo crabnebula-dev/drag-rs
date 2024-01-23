@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use drag::{start_drag, DragItem, DragResult, Image, CursorPosition};
+use drag::{start_drag, CursorPosition, DragItem, DragResult, Image};
 use wry::application::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
