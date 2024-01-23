@@ -294,10 +294,8 @@ fn create_main_window(
                 let _ =
                     proxy.send_event(UserEvent::StartDragOut(window_id, payload.item, Some(icon)));
             }
-        } else {
-            if req.as_str() == "close" {
-                let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
-            }
+        } else if req.as_str() == "close" {
+            let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
         }
     };
     let file_drop_handler = move |_w: &Window, req: FileDropEvent| {
@@ -422,10 +420,8 @@ fn create_new_window(
                     Some(icon),
                 ));
             }
-        } else {
-            if req.as_str() == "close" {
-                let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
-            }
+        } else if req.as_str() == "close" {
+            let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
         }
     };
 
