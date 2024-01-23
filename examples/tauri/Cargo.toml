@@ -9,4 +9,4 @@ tauri-build = "1"
 
 [dependencies]
 tauri = { version = "1", features = [ "path-all"] }
-tauri-plugin-drag = { path = "../../crates/tauri-plugin/" }
+tauri-plugin-drag = { path = "../../crates/tauri-plugin-drag/" }

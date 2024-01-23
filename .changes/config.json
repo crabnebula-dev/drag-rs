@@ -29,7 +29,7 @@
   },
   "packages": {
     "@crabnebula/tauri-plugin-drag": {
-      "path": "./packages/tauri-plugin-api",
+      "path": "./packages/tauri-plugin-drag-api",
       "manager": "javascript"
     },
     "drag": {
@@ -37,7 +37,7 @@
       "manager": "rust"
     },
     "tauri-plugin-drag": {
-      "path": "./crates/tauri-plugin",
+      "path": "./crates/tauri-plugin-drag",
       "manager": "rust",
       "dependencies": ["drag"]
     }
