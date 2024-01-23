@@ -35,9 +35,10 @@
 //!     &window,
 //!     item,
 //!     preview_icon,
-//!     |result| {
+//!     |result, cursor_position| {
 //!       println!("drag result: {result:?}");
-//!     }
+//!     },
+//!     drag::Options::default(),
 //!   );
 //!   ```
 //!
@@ -60,9 +61,10 @@
 //!     &webview.window(),
 //!     item,
 //!     preview_icon,
-//!     |result| {
+//!     |result, cursor_position| {
 //!       println!("drag result: {result:?}");
-//!     }
+//!     },
+//!     drag::Options::default(),
 //!   );
 //!   ```
 //!
@@ -75,7 +77,7 @@
 //!   let preview_icon = drag::Image::File("./examples/icon.png".into());
 //!
 //!   # #[cfg(not(target_os = "linux"))]
-//!   let _ = drag::start_drag(&window, item, preview_icon, |result| {
+//!   let _ = drag::start_drag(&window, item, preview_icon, |result, cursor_position| {
 //!     println!("drag result: {result:?}");
 //!   });
 //!   ```
