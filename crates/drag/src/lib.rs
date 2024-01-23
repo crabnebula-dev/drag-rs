@@ -131,6 +131,9 @@ pub enum DragItem {
     /// The paths must be absolute.
     Files(Vec<PathBuf>),
     /// Data to share with another app.
+    ///
+    /// - **Windows**: Not supported. Will result in a dummy drag operation of current folder that will be cancelled upon dropping.
+    /// - **Linux (gtk)**: Not supported. Will result in a dummy drag operation that contains nothing to drop.
     Data {
         provider: DataProvider,
         types: Vec<String>,
