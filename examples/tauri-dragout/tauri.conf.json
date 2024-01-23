@@ -2,13 +2,11 @@
   "build": {
     "distDir": [
       "./index.html",
-      "./new_window.html",
-      "./html2canvas.min.js"
+      "./new_window.html"
     ],
     "devPath": [
       "./index.html",
-      "./new_window.html",
-      "./html2canvas.min.js"
+      "./new_window.html"
     ],
     "withGlobalTauri": true
   },
@@ -18,10 +16,6 @@
       "icon": [
         "../icon.png",
         "../icon.ico"
-      ],
-      "resources": [
-        "../icon.png",
-        "./dummy"
       ]
     },
     "windows": [

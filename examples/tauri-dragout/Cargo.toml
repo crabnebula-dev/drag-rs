@@ -14,4 +14,6 @@ tauri = { version = "1", features = [
   "window-data-url",
   "window-close",
 ] }
-tauri-plugin-drag = { path = "../../crates/tauri-plugin-drag/" }
+tauri-plugin-drag-as-window = { path = "../../crates/tauri-plugin-drag-as-window/", features = [
+  "global-js",
+] }

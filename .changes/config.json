@@ -32,12 +32,21 @@
       "path": "./packages/tauri-plugin-drag-api",
       "manager": "javascript"
     },
+    "@crabnebula/tauri-plugin-drag-as-window": {
+      "path": "./packages/tauri-plugin-drag-as-window-api",
+      "manager": "javascript"
+    },
     "drag": {
       "path": "./crates/drag",
       "manager": "rust"
     },
     "tauri-plugin-drag": {
       "path": "./crates/tauri-plugin-drag",
+      "manager": "rust",
+      "dependencies": ["drag"]
+    },
+    "tauri-plugin-drag-as-window": {
+      "path": "./crates/tauri-plugin-drag-as-window",
       "manager": "rust",
       "dependencies": ["drag"]
     }
