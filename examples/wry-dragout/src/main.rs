@@ -5,14 +5,11 @@
 use base64::Engine;
 use drag::{start_drag, CursorPosition, DragItem, DragResult, Image};
 use serde::{Deserialize, Deserializer};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use wry::application::dpi::LogicalPosition;
 use wry::application::event_loop::EventLoopWindowTarget;
 use wry::application::window::WindowId;
-use wry::webview::FileDropEvent::Dropped;
-use wry::webview::{self, FileDropEvent, WebViewBuilder};
+use wry::webview::{FileDropEvent, WebViewBuilder};
 use wry::{
     application::{
         dpi::LogicalSize,
@@ -29,7 +26,6 @@ enum UserEvent {
     PopulateElement(WindowId, String),
     RemoveElement(WindowId, String),
     CloseWindow(WindowId),
-    NewTitle(WindowId, String),
     NewWindow(CursorPosition, String),
 }
 
@@ -103,9 +99,6 @@ fn main() -> wry::Result<()> {
                 if webviews.is_empty() {
                     *control_flow = ControlFlow::Exit
                 }
-            }
-            Event::UserEvent(UserEvent::NewTitle(id, title)) => {
-                webviews.get(&id).unwrap().window().set_title(&title);
             }
             Event::UserEvent(UserEvent::PopulateElement(id, item)) => {
                 let webview = &webviews.get(&id).unwrap();
@@ -308,7 +301,7 @@ fn create_main_window(
         }
     };
     let file_drop_handler = move |_w: &Window, req: FileDropEvent| {
-        if let Dropped(paths) = req {
+        if let FileDropEvent::Dropped(paths) = req {
             for f in paths {
                 let _ = file_drop_proxy.send_event(UserEvent::PopulateElement(
                     window_id,
