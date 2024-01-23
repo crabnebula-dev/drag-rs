@@ -91,9 +91,7 @@ impl DummyDropSource {
 #[allow(non_snake_case)]
 impl IDropSource_Impl for DummyDropSource {
     fn QueryContinueDrag(&self, fescapepressed: BOOL, grfkeystate: MODIFIERKEYS_FLAGS) -> HRESULT {
-        if fescapepressed.as_bool() {
-            DRAGDROP_S_CANCEL
-        } else if (grfkeystate & MK_LBUTTON) == MODIFIERKEYS_FLAGS(0) {
+        if fescapepressed.as_bool() || (grfkeystate & MK_LBUTTON) == MODIFIERKEYS_FLAGS(0) {
             DRAGDROP_S_CANCEL
         } else {
             S_OK
@@ -271,8 +269,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
                     }
                 }
 
-                let mut paths = Vec::new();
-                paths.push(dunce::canonicalize("./")?);
+                let paths = vec![dunce::canonicalize("./")?];
 
                 let data_object: IDataObject = get_file_data_object(&paths).unwrap();
                 let drop_source: IDropSource = DummyDropSource::new().into();
