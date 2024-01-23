@@ -6,6 +6,7 @@ use base64::Engine;
 use drag::{start_drag, CursorPosition, DragItem, DragResult, Image};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use wry::application::dpi::LogicalPosition;
 use wry::application::event_loop::EventLoopWindowTarget;
 use wry::application::window::WindowId;
@@ -165,8 +166,7 @@ fn main() -> wry::Result<()> {
                 };
                 let mut paths = Vec::new();
                 let dummy_path = "./examples/wry-dragout/dummy/".to_owned() + &item;
-                dbg!(&dummy_path);
-                paths.push(dummy_path.into());
+                paths.push(PathBuf::from(dummy_path).canonicalize().unwrap());
                 start_drag(
                     #[cfg(target_os = "linux")]
                     {
@@ -315,8 +315,8 @@ fn create_main_window(
                 ));
             }
         }
-        // need to return false to prevent triggering OS drop behavior
-        false
+        // need to return true to prevent triggering OS drop behavior
+        true
     };
     let webview = WebViewBuilder::new(window)?
         .with_html(HTML)?
