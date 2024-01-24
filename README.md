@@ -1,7 +1,5 @@
 # drag-rs
 
-## PRERELEASE - UNPUBLISHED - THERE BE DRAGONS
-
 Start a drag operation out of a window on macOS, Windows and Linux (via GTK).
 
 Tested for [tao](https://github.com/tauri-apps/tao) (latest), [winit](https://github.com/rust-windowing/winit) (latest), [wry](https://github.com/tauri-apps/wry) (v0.24) and [tauri](https://github.com/tauri-apps/tauri) (v1) windows.
