@@ -44,6 +44,7 @@ pub fn start_drag<F: Fn(DragResult, CursorPosition) + Send + 'static>(
                 }));
         }
         DragItem::Data { .. } => {
+            // Currently leaving it as is as we can utilize it as a dummy dragging feature
             // on_drop_callback(DragResult::Cancel, get_cursor_position(window).unwrap());
             // return Ok(());
         }

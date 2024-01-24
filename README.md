@@ -135,6 +135,12 @@ Running the examples:
 cargo run --bin [tauri-app|winit-app|tao-app|wry-app]
 ```
 
+Additional drag as window examples are available for tauri and wry:
+
+```sh
+cargo run --bin [tauri-app-dragout|wry-app-dragout]
+```
+
 ## Licenses
 
 MIT or MIT/Apache 2.0 where applicable.
