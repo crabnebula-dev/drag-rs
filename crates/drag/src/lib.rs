@@ -79,7 +79,7 @@
 //!   # #[cfg(not(target_os = "linux"))]
 //!   let _ = drag::start_drag(&window, item, preview_icon, |result, cursor_position| {
 //!     println!("drag result: {result:?}");
-//!   });
+//!   }, Default::default());
 //!   ```
 
 #[cfg(target_os = "macos")]

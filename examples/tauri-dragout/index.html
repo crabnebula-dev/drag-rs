@@ -47,18 +47,15 @@
       event.preventDefault();
 
       const el = event.target;
-      window.__TAURI__.dragAsWindow.startDrag(el, { id: el.id }, async (payload) => {
-        console.log(payload);
-        if (payload.result === "CreateWindow") {
-          try {
-            console.log("creating window");
-            /* Create window by template HTML, and use event to exchange required info */
-            createWindowByHtmlTemplate(el, payload);
+      window.__TAURI__.dragAsWindow.dragAsWindow(el, async (payload) => {
+        try {
+          console.log("creating window");
+          /* Create window by template HTML, and use event to exchange required info */
+          createWindowByHtmlTemplate(el, payload);
 
-            el.remove();
-          } catch (e) {
-            console.error(e);
-          }
+          el.remove();
+        } catch (e) {
+          console.error(e);
         }
       }).catch(err => console.error('failed to drag', err));
     }

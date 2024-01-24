@@ -5,6 +5,7 @@
 use std::{
     fs::read,
     io::Write,
+    path::PathBuf,
     sync::{mpsc::channel, Arc, Mutex},
 };
 
@@ -14,7 +15,7 @@ use tauri::{
     api::ipc::CallbackFn,
     command,
     plugin::{Builder, TauriPlugin},
-    AppHandle, FileDropEvent, Runtime, Window, WindowEvent,
+    AppHandle, FileDropEvent, Manager, Runtime, Window, WindowEvent,
 };
 
 type Result<T> = std::result::Result<T, Error>;
@@ -83,12 +84,68 @@ async fn on_drop<R: Runtime>(window: Window<R>, handler: CallbackFn) -> Result<(
 }
 
 #[command]
-async fn start_drag<R: Runtime>(
+async fn drag_new_window<R: Runtime>(
+    app: AppHandle<R>,
+    window: Window<R>,
+    image_base64: String,
+    on_event_fn: Option<CallbackFn>,
+) -> Result<()> {
+    perform_drag(
+        app,
+        window,
+        DragData::Data,
+        image_base64,
+        on_event_fn,
+        || {},
+    )
+}
+
+#[command]
+async fn drag_back<R: Runtime>(
     app: AppHandle<R>,
     window: Window<R>,
     data: serde_json::Value,
     image_base64: String,
     on_event_fn: Option<CallbackFn>,
+) -> Result<()> {
+    let data = serde_json::to_vec(&data)?;
+
+    let mut file = tempfile::Builder::new().prefix(FILE_PREFIX).tempfile()?;
+    file.write_all(&data)?;
+    file.flush()?;
+    let path = file.path().to_path_buf();
+
+    let file = Arc::new(Mutex::new(Some(file)));
+
+    perform_drag(
+        app,
+        window,
+        DragData::Path(path),
+        image_base64,
+        on_event_fn,
+        move || {
+            let file_ = file.clone();
+            // wait a litle to delete the file
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                file_.lock().unwrap().take();
+            });
+        },
+    )
+}
+
+enum DragData {
+    Path(PathBuf),
+    Data,
+}
+
+fn perform_drag<R: Runtime, F: Fn() + Send + Sync + 'static>(
+    app: AppHandle<R>,
+    window: Window<R>,
+    data: DragData,
+    image_base64: String,
+    on_event_fn: Option<CallbackFn>,
+    handler: F,
 ) -> Result<()> {
     let (tx, rx) = channel();
 
@@ -99,12 +156,6 @@ async fn start_drag<R: Runtime>(
                 .ok_or(Error::InvalidBase64)?,
         )?,
     );
-    let data = serde_json::to_vec(&data)?;
-
-    let mut file = tempfile::Builder::new().prefix(FILE_PREFIX).tempfile()?;
-    file.write_all(&data)?;
-    file.flush()?;
-    let path = file.path().to_path_buf();
 
     app.run_on_main_thread(move || {
         #[cfg(target_os = "linux")]
@@ -112,30 +163,31 @@ async fn start_drag<R: Runtime>(
         #[cfg(not(target_os = "linux"))]
         let raw_window = tauri::Result::Ok(window.clone());
 
-        let file = Arc::new(Mutex::new(Some(file)));
-
         let r = match raw_window {
             Ok(w) => drag::start_drag(
                 &w,
-                drag::DragItem::Files(vec![path]),
+                match data {
+                    DragData::Path(p) => drag::DragItem::Files(vec![p]),
+                    DragData::Data => drag::DragItem::Data {
+                        provider: Box::new(|_type| Some(Vec::new())),
+                        types: vec![window.config().tauri.bundle.identifier.clone()],
+                    },
+                },
                 image,
                 move |result, cursor_pos| {
                     if let Some(on_event_fn) = on_event_fn {
                         let callback_result = CallbackResult { result, cursor_pos };
                         let js = tauri::api::ipc::format_callback(on_event_fn, &callback_result)
-                            .expect("unable to serialize DragResult");
+                            .expect("unable to serialize CallbackResult");
 
                         let _ = window.eval(js.as_str());
-
-                        let file_ = file.clone();
-                        // wait a litle to delete the file
-                        std::thread::spawn(move || {
-                            std::thread::sleep(std::time::Duration::from_secs(3));
-                            file_.lock().unwrap().take();
-                        });
                     }
+
+                    handler();
                 },
-                Default::default(),
+                drag::Options {
+                    skip_animatation_on_cancel_or_failure: true,
+                },
             )
             .map_err(Into::into),
             Err(e) => Err(e.into()),
@@ -157,6 +209,10 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     }
 
     builder
-        .invoke_handler(tauri::generate_handler![start_drag, on_drop])
+        .invoke_handler(tauri::generate_handler![
+            drag_new_window,
+            drag_back,
+            on_drop
+        ])
         .build()
 }

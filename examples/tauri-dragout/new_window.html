@@ -48,7 +48,7 @@
 
       const el = event.target;
 
-      window.__TAURI__.dragAsWindow.startDrag(el, { id: el.id }, async (_) => {
+      window.__TAURI__.dragAsWindow.dragBack(el, { id: el.id }, async (_) => {
         window.__TAURI__.window.appWindow.close();
       });
     }
