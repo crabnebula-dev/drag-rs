@@ -9,7 +9,7 @@ This project also includes a Tauri plugin for simplified usage on Tauri apps.
 
 ## Setup
 
-There's two ways to consume this crate API: from Rust code via the `drag` crate or from Tauri's frontend via `tauri-plugin-drag`.
+There's two ways to consume this crate API: from Rust code via the `drag` crate or from Tauri's frontend via `tauri-plugin-drag` or `tauri-plugin-drag-as-window`.
 
 ### Rust
 
@@ -91,6 +91,8 @@ There's two ways to consume this crate API: from Rust code via the `drag` crate 
 
 ### Tauri Plugin
 
+#### tauri-plugin-drag
+
 - Add the `tauri-plugin-drag` dependency:
 
 `$ cargo add tauri-plugin-drag`
@@ -123,6 +125,43 @@ fn main() {
 ```javascript
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 startDrag({ item: ['/path/to/drag/file'], icon: '/path/to/icon/image' })
+```
+
+#### tauri-plugin-drag-as-window
+
+- Add the `tauri-plugin-drag-as-window` dependency:
+
+`$ cargo add tauri-plugin-drag-as-window`
+
+- Install the `@crabnebula/tauri-plugin-drag-as-window` NPM package containing the API bindings:
+
+```sh
+pnpm add @crabnebula/tauri-plugin-drag-as-window
+# or
+npm add @crabnebula/tauri-plugin-drag-as-window
+# or
+yarn add @crabnebula/tauri-plugin-drag-as-window
+```
+
+- Register the core plugin with Tauri:
+
+`src-tauri/src/main.rs`
+
+```rust
+fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_drag_as_window::init())
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+```
+
+- Afterwards all the plugin's APIs are available through the JavaScript guest bindings:
+
+```javascript
+import { dragNewWindow, dragBack } from "@crabnebula/tauri-plugin-drag-as-window";
+dragNewWindow({ imageBase64: 'some encoded image string' })
+dragBack({ data: 'some data', imageBase64: 'some encoded image string' })
 ```
 
 ## Examples
