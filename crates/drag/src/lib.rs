@@ -121,7 +121,6 @@ pub enum Error {
 pub enum DragResult {
     Dropped,
     Cancel,
-    NoTarget,
 }
 
 pub type DataProvider = Box<dyn Fn(&str) -> Option<Vec<u8>>>;

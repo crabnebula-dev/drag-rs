@@ -115,10 +115,7 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
         .unwrap()
         .push(window.connect_drag_failed(move |_, _, drag_result| {
             callback(
-                match drag_result {
-                    gtk::DragResult::NoTarget => DragResult::NoTarget,
-                    _ => DragResult::Cancel,
-                },
+                DragResult::Cancel,
                 get_cursor_position(&window_clone).unwrap(),
             );
 
