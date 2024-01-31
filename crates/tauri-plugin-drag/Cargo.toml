@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-drag"
-version = "0.2.0"
+version = "0.3.0"
 authors = [ "CrabNebula Ltd." ]
 description = "Start a drag operation out of a Tauri window"
 edition = "2021"
@@ -12,5 +12,5 @@ tauri = "1"
 serde = "1"
 serde_json = "1"
 thiserror = "1"
-drag = { path = "../drag", version = "0.3.0", features = [ "serde" ] }
+drag = { path = "../drag", version = "0.4.0", features = [ "serde" ] }
 base64 = "0.21"
