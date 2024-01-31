@@ -113,7 +113,7 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     handler_ids
         .lock()
         .unwrap()
-        .push(window.connect_drag_failed(move |_, _, drag_result| {
+        .push(window.connect_drag_failed(move |_, _, _drag_result| {
             callback(
                 DragResult::Cancel,
                 get_cursor_position(&window_clone).unwrap(),
