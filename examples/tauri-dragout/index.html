@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    .drag-item {
+      border: 2px solid black;
+      border-radius: 3px;
+      width: 100%;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-user-select: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="drop-zone" class="drag-zone"></div>
+  <script type="text/javascript">
+
+    appendItem('drag-1');
+    appendItem('drag-2');
+    appendItem('drag-3');
+
+    window.__TAURI__.dragAsWindow.onElementDrop((data) => {
+      console.log('element dropped', data);
+      appendItem(data.id);
+    });
+
+    function appendItem(id) {
+      const dropZoneEl = document.getElementById('drop-zone');
+      const dragEl = document.createElement('div');
+      dragEl.setAttribute('draggable', 'true');
+      dragEl.id = id;
+      dragEl.className = 'drag-item';
+      dragEl.innerText = `Drag me ${id}`;
+      dropZoneEl.appendChild(dragEl);
+      dragEl.ondragstart = dragHandler;
+    }
+
+    async function dragHandler(event) {
+      event.preventDefault();
+
+      const el = event.target;
+      window.__TAURI__.dragAsWindow.dragAsWindow(el, async (payload) => {
+        try {
+          console.log("creating window");
+          /* Create window by template HTML, and use event to exchange required info */
+          createWindowByHtmlTemplate(el, payload);
+
+          el.remove();
+        } catch (e) {
+          console.error(e);
+        }
+      }).catch(err => console.error('failed to drag', err));
+    }
+
+    function createWindowByHtmlTemplate(el, payload) {
+      const newWindow = new window.__TAURI__.window.WebviewWindow(el.id, {
+        url: 'new_window.html',
+        title: `New Window ${el.id}`,
+        width: el.clientWidth,
+        height: el.clientHeight + 20, // 20: titlebar height
+        x: payload.cursorPos.x,
+        y: payload.cursorPos.y,
+      });
+      window.__TAURI__.event.once(`loaded-${el.id}`, (_event) => {
+        window.__TAURI__.event.emit(`init-${el.id}`, {
+          id: el.id,
+        });
+      });
+    }
+  </script>
+</body>
+
+</html>

@@ -9,13 +9,14 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSArray, NSData, NSPoint, NSRect, NSSize, NSUInteger},
 };
+use core_graphics::display::CGDisplay;
 use objc::{
     declare::ClassDecl,
-    runtime::{Class, Object, Protocol, Sel, NO, YES},
+    runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
 };
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{DragItem, DragResult, Image};
+use crate::{CursorPosition, DragItem, DragResult, Image, Options};
 
 const UTF8_ENCODING: usize = 4;
 
@@ -49,11 +50,12 @@ impl NSString {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
     on_drop_callback: F,
+    options: Options,
 ) -> crate::Result<()> {
     if let RawWindowHandle::AppKit(w) = handle.raw_window_handle() {
         unsafe {
@@ -208,6 +210,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
             let cls = match cls {
                 Some(mut cls) => {
                     cls.add_ivar::<*mut c_void>("on_drop_ptr");
+                    cls.add_ivar::<BOOL>("animate_on_cancel_or_failure");
                     cls.add_method(
                         sel!(draggingSession:sourceOperationMaskForDraggingContext:),
                         dragging_session
@@ -220,11 +223,16 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                     );
 
                     extern "C" fn dragging_session(
-                        _this: &Object,
+                        this: &Object,
                         _: Sel,
-                        _dragging_session: id,
+                        dragging_session: id,
                         context: NSUInteger,
                     ) -> NSUInteger {
+                        unsafe {
+                            let animates = this.get_ivar::<BOOL>("animate_on_cancel_or_failure");
+                            let () = msg_send![dragging_session, setAnimatesToStartingPositionsOnCancelOrFail: *animates];
+                        }
+
                         if context == 0 {
                             // NSDragOperationCopy
                             1
@@ -238,18 +246,25 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                         this: &Object,
                         _: Sel,
                         _dragging_session: id,
-                        _ended_at_point: NSPoint,
+                        ended_at_point: NSPoint,
                         operation: NSUInteger,
                     ) {
                         unsafe {
                             let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
 
-                            let callback_closure = &*(*callback as *mut Box<dyn Fn(DragResult)>);
+                            let mouse_location = CursorPosition {
+                                x: ended_at_point.x as i32,
+                                y: CGDisplay::main().pixels_high() as i32 - ended_at_point.y as i32,
+                            };
+
+                            let callback_closure =
+                                &*(*callback as *mut Box<dyn Fn(DragResult, CursorPosition)>);
+
                             if operation == 0 {
                                 // NSDragOperationNone
-                                callback_closure(DragResult::Cancel);
+                                callback_closure(DragResult::Cancel, mouse_location);
                             } else {
-                                callback_closure(DragResult::Dropped);
+                                callback_closure(DragResult::Dropped, mouse_location);
                             }
 
                             drop(Box::from_raw(*callback as *mut Box<dyn Fn(DragResult)>));
@@ -264,9 +279,14 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
             let source: id = msg_send![cls, alloc];
             let source: id = msg_send![source, init];
 
-            let on_drop_callback = Box::new(on_drop_callback) as Box<dyn Fn(DragResult) + Send>;
+            let on_drop_callback =
+                Box::new(on_drop_callback) as Box<dyn Fn(DragResult, CursorPosition) + Send>;
             let callback_ptr = Box::into_raw(Box::new(on_drop_callback));
             (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
+            (*source).set_ivar(
+                "animate_on_cancel_or_failure",
+                !options.skip_animatation_on_cancel_or_failure,
+            );
 
             let _: () = msg_send![ns_view, beginDraggingSessionWithItems: dragging_items event: drag_event source: source];
         }

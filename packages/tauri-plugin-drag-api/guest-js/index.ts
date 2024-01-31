@@ -6,9 +6,22 @@ export type DragItem =
 
 export type DragResult = "Dropped" | "Cancelled";
 
+/**
+ * Logical position of the cursor.
+ */
+export interface CursorPosition {
+  x: Number;
+  y: Number;
+}
+
 export interface Options {
   item: DragItem;
   icon: string;
+}
+
+export interface CallbackPayload {
+  result: DragResult;
+  cursorPos: CursorPosition;
 }
 
 /**
@@ -42,7 +55,7 @@ export interface Options {
  */
 export async function startDrag(
   options: Options,
-  onEvent?: (result: DragResult) => void
+  onEvent?: (result: CallbackPayload) => void
 ): Promise<void> {
   await invoke("plugin:drag|start_drag", {
     item: options.item,

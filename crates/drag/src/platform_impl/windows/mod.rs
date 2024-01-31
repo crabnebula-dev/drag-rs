@@ -4,7 +4,7 @@
 
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{DragItem, DragResult, Image};
+use crate::{CursorPosition, DragItem, DragResult, Image, Options};
 
 use std::{
     ffi::c_void,
@@ -23,9 +23,12 @@ use windows::{
         System::Ole::{DoDragDrop, OleInitialize},
         System::Ole::{IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY},
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
-        UI::Shell::{
-            BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
-            SHCreateDataObject, SHCreateShellItemArrayFromIDLists, DROPFILES, SHDRAGIMAGE,
+        UI::{
+            Shell::{
+                BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
+                SHCreateDataObject, SHCreateShellItemArrayFromIDLists, DROPFILES, SHDRAGIMAGE,
+            },
+            WindowsAndMessaging::GetCursorPos,
         },
     },
 };
@@ -53,6 +56,9 @@ struct DataObject {
 #[implement(IDropSource)]
 struct DropSource(());
 
+#[implement(IDropSource)]
+struct DummyDropSource(());
+
 impl DropSource {
     fn new() -> Self {
         Self(())
@@ -66,6 +72,27 @@ impl IDropSource_Impl for DropSource {
             DRAGDROP_S_CANCEL
         } else if (grfkeystate & MK_LBUTTON) == MODIFIERKEYS_FLAGS(0) {
             DRAGDROP_S_DROP
+        } else {
+            S_OK
+        }
+    }
+
+    fn GiveFeedback(&self, _dweffect: DROPEFFECT) -> HRESULT {
+        DRAGDROP_S_USEDEFAULTCURSORS
+    }
+}
+
+impl DummyDropSource {
+    fn new() -> Self {
+        Self(())
+    }
+}
+
+#[allow(non_snake_case)]
+impl IDropSource_Impl for DummyDropSource {
+    fn QueryContinueDrag(&self, fescapepressed: BOOL, grfkeystate: MODIFIERKEYS_FLAGS) -> HRESULT {
+        if fescapepressed.as_bool() || (grfkeystate & MK_LBUTTON) == MODIFIERKEYS_FLAGS(0) {
+            DRAGDROP_S_CANCEL
         } else {
             S_OK
         }
@@ -183,11 +210,12 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
+pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
     on_drop_callback: F,
+    _options: Options,
 ) -> crate::Result<()> {
     if let RawWindowHandle::Win32(_w) = handle.raw_window_handle() {
         match item {
@@ -223,18 +251,54 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult) + Send + 'static>(
                         DROPEFFECT_COPY,
                         &mut out_dropeffect,
                     );
-
+                    let mut pt = POINT { x: 0, y: 0 };
+                    GetCursorPos(&mut pt)?;
                     if drop_result == DRAGDROP_S_DROP {
-                        on_drop_callback(DragResult::Dropped);
+                        on_drop_callback(DragResult::Dropped, CursorPosition { x: pt.x, y: pt.y });
                     } else {
                         // DRAGDROP_S_CANCEL
-                        on_drop_callback(DragResult::Cancel);
+                        on_drop_callback(DragResult::Cancel, CursorPosition { x: pt.x, y: pt.y });
                     }
                 }
             }
             DragItem::Data { .. } => {
-                on_drop_callback(DragResult::Cancel);
-                return Ok(());
+                init_ole();
+                unsafe {
+                    if let Err(e) = &OLE_RESULT {
+                        return Err(e.clone().into());
+                    }
+                }
+
+                let paths = vec![dunce::canonicalize("./")?];
+
+                let data_object: IDataObject = get_file_data_object(&paths).unwrap();
+                let drop_source: IDropSource = DummyDropSource::new().into();
+
+                unsafe {
+                    if let Some(drag_image) = get_drag_image(image) {
+                        if let Ok(helper) =
+                            create_instance::<IDragSourceHelper>(&CLSID_DragDropHelper)
+                        {
+                            let _ = helper.InitializeFromBitmap(&drag_image, &data_object);
+                        }
+                    }
+
+                    let mut out_dropeffect = DROPEFFECT::default();
+                    let drop_result = DoDragDrop(
+                        &data_object,
+                        &drop_source,
+                        DROPEFFECT_COPY,
+                        &mut out_dropeffect,
+                    );
+                    let mut pt = POINT { x: 0, y: 0 };
+                    GetCursorPos(&mut pt)?;
+                    if drop_result == DRAGDROP_S_DROP {
+                        on_drop_callback(DragResult::Dropped, CursorPosition { x: pt.x, y: pt.y });
+                    } else {
+                        // DRAGDROP_S_CANCEL
+                        on_drop_callback(DragResult::Cancel, CursorPosition { x: pt.x, y: pt.y });
+                    }
+                }
             }
         }
         Ok(())

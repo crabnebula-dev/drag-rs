@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use drag::{start_drag, DragItem, DragResult, Image};
+use drag::{start_drag, CursorPosition, DragItem, DragResult, Image};
 use tao::{
     dpi::LogicalSize,
     event::{ElementState, Event, MouseButton, StartCause, WindowEvent},
@@ -52,9 +52,13 @@ fn main() {
                     DragItem::Files(vec![std::fs::canonicalize("./examples/icon.png").unwrap()]),
                     Image::Raw(include_bytes!("../../icon.png").to_vec()),
                     // Image::File("./examples/icon.png".into()),
-                    |result: DragResult| {
-                        println!("--> Drop Result: [{:?}]", result);
+                    |result: DragResult, cursor_pos: CursorPosition| {
+                        println!(
+                            "--> Drop Result: [{:?}], Cursor Pos:[{:?}]",
+                            result, cursor_pos
+                        );
                     },
+                    Default::default(),
                 )
                 .unwrap();
             }

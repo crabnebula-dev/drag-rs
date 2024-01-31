@@ -1,0 +1,19 @@
+[package]
+name = "tauri-app-dragout"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[build-dependencies]
+tauri-build = "1"
+
+[dependencies]
+tauri = { version = "1", features = [
+  "path-all",
+  "window-create",
+  "window-data-url",
+  "window-close",
+] }
+tauri-plugin-drag-as-window = { path = "../../crates/tauri-plugin-drag-as-window/", features = [
+  "global-js",
+] }

@@ -35,9 +35,10 @@
 //!     &window,
 //!     item,
 //!     preview_icon,
-//!     |result| {
+//!     |result, cursor_position| {
 //!       println!("drag result: {result:?}");
-//!     }
+//!     },
+//!     drag::Options::default(),
 //!   );
 //!   ```
 //!
@@ -60,9 +61,10 @@
 //!     &webview.window(),
 //!     item,
 //!     preview_icon,
-//!     |result| {
+//!     |result, cursor_position| {
 //!       println!("drag result: {result:?}");
-//!     }
+//!     },
+//!     drag::Options::default(),
 //!   );
 //!   ```
 //!
@@ -75,9 +77,9 @@
 //!   let preview_icon = drag::Image::File("./examples/icon.png".into());
 //!
 //!   # #[cfg(not(target_os = "linux"))]
-//!   let _ = drag::start_drag(&window, item, preview_icon, |result| {
+//!   let _ = drag::start_drag(&window, item, preview_icon, |result, cursor_position| {
 //!     println!("drag result: {result:?}");
-//!   });
+//!   }, Default::default());
 //!   ```
 
 #[cfg(target_os = "macos")]
@@ -110,6 +112,8 @@ pub enum Error {
     EmptyTargetList,
     #[error("failed to drop items")]
     FailedToDrop,
+    #[error("failed to get cursor position")]
+    FailedToGetCursorPosition,
 }
 
 #[derive(Debug)]
@@ -128,10 +132,18 @@ pub enum DragItem {
     /// The paths must be absolute.
     Files(Vec<PathBuf>),
     /// Data to share with another app.
+    ///
+    /// - **Windows**: Not supported. Will result in a dummy drag operation of current folder that will be cancelled upon dropping.
+    /// - **Linux (gtk)**: Not supported. Will result in a dummy drag operation that contains nothing to drop.
     Data {
         provider: DataProvider,
         types: Vec<String>,
     },
+}
+
+#[derive(Default)]
+pub struct Options {
+    pub skip_animatation_on_cancel_or_failure: bool,
 }
 
 /// An image definition.
@@ -143,4 +155,14 @@ pub enum Image {
     File(PathBuf),
     /// Raw bytes of the image.
     Raw(Vec<u8>),
+}
+
+/// Logical position of the cursor.
+///
+/// - **Windows**: Currently the win32 API for logical position reports physical position as well, due to the complicated nature of potential multiple monitor with different scaling there's no trivial solution to be incorporated.
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+pub struct CursorPosition {
+    pub x: i32,
+    pub y: i32,
 }

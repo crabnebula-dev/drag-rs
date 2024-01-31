@@ -1,0 +1,13 @@
+[package]
+name = "wry-app-dragout"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+base64 = "0.21.6"
+drag = { path = "../../crates/drag" }
+serde = "1.0.195"
+serde_json = "1.0.111"
+wry = "0.24"
+dunce = "1"

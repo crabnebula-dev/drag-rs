@@ -1,7 +1,5 @@
 # drag-rs
 
-## PRERELEASE - UNPUBLISHED - THERE BE DRAGONS
-
 Start a drag operation out of a window on macOS, Windows and Linux (via GTK).
 
 Tested for [tao](https://github.com/tauri-apps/tao) (latest), [winit](https://github.com/rust-windowing/winit) (latest), [wry](https://github.com/tauri-apps/wry) (v0.24) and [tauri](https://github.com/tauri-apps/tauri) (v1) windows.
@@ -11,7 +9,7 @@ This project also includes a Tauri plugin for simplified usage on Tauri apps.
 
 ## Setup
 
-There's two ways to consume this crate API: from Rust code via the `drag` crate or from Tauri's frontend via `tauri-plugin-drag`.
+There's two ways to consume this crate API: from Rust code via the `drag` crate or from Tauri's frontend via `tauri-plugin-drag` or `tauri-plugin-drag-as-window`.
 
 ### Rust
 
@@ -93,6 +91,8 @@ There's two ways to consume this crate API: from Rust code via the `drag` crate 
 
 ### Tauri Plugin
 
+#### tauri-plugin-drag
+
 - Add the `tauri-plugin-drag` dependency:
 
 `$ cargo add tauri-plugin-drag`
@@ -127,12 +127,72 @@ import { startDrag } from "@crabnebula/tauri-plugin-drag";
 startDrag({ item: ['/path/to/drag/file'], icon: '/path/to/icon/image' })
 ```
 
+#### tauri-plugin-drag-as-window
+
+- Add the `tauri-plugin-drag-as-window` dependency:
+
+`$ cargo add tauri-plugin-drag-as-window`
+
+- Install the `@crabnebula/tauri-plugin-drag-as-window` NPM package containing the API bindings:
+
+```sh
+pnpm add @crabnebula/tauri-plugin-drag-as-window
+# or
+npm add @crabnebula/tauri-plugin-drag-as-window
+# or
+yarn add @crabnebula/tauri-plugin-drag-as-window
+```
+
+- Register the core plugin with Tauri:
+
+`src-tauri/src/main.rs`
+
+```rust
+fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_drag_as_window::init())
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+```
+
+- Afterwards all the plugin's APIs are available through the JavaScript guest bindings:
+
+```javascript
+import { dragAsWindow, dragBack } from "@crabnebula/tauri-plugin-drag-as-window";
+import { appWindow, WebviewWindow } from "@tauri-apps/api/window";
+// alternatively you can pass a DOM element instead of its selector
+dragAsWindow('#my-drag-element', (payload) => {
+  console.log('dropped!')
+  // create the window with the content from the current element (that's is up to you!)
+  new WebviewWindow('label', {
+    x: payload.cursorPos.x,
+    y: payload.cursorPos.y,
+  })
+})
+
+const el = document.querySelector('#my-drag-element')
+el.ondragstart = (event) => {
+  event.preventDefault()
+
+  dragBack(event.target, { data: 'some data' }, (payload) => {
+    appWindow.close()
+  })
+}
+```
+
 ## Examples
 
 Running the examples:
 
 ```sh
 cargo run --bin [tauri-app|winit-app|tao-app|wry-app]
+```
+
+Additional drag as window examples are available for tauri and wry:
+
+```sh
+cargo run --bin [tauri-app-dragout|wry-app-dragout]
 ```
 
 ## Licenses
