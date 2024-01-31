@@ -1,6 +1,6 @@
 [package]
 name = "drag"
-version = "0.3.0"
+version = "0.4.0"
 description = "Start a drag operation out of a window"
 authors = [ "CrabNebula Ltd." ]
 edition = { workspace = true }

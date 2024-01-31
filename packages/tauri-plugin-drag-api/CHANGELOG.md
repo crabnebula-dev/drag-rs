@@ -1,5 +1,9 @@
 # Changelog
 
+## \[0.3.0]
+
+- [`dd3f087`](https://github.com/crabnebula-dev/drag-rs/commit/dd3f0873ae2406968d412d9dfdc1c79a5ed5533e)([#25](https://github.com/crabnebula-dev/drag-rs/pull/25)) Changed the onEvent callback payload from `DragResult` to `{ result: DragResult, cursorPos: CursorPosition }`.
+
 ## \[0.2.2]
 
 - [`dcafc76`](https://github.com/crabnebula-dev/drag-rs/commit/undefined) Fixes package ignoring dist files.
