@@ -159,9 +159,26 @@ fn main() {
 - Afterwards all the plugin's APIs are available through the JavaScript guest bindings:
 
 ```javascript
-import { dragNewWindow, dragBack } from "@crabnebula/tauri-plugin-drag-as-window";
-dragNewWindow({ imageBase64: 'some encoded image string' })
-dragBack({ data: 'some data', imageBase64: 'some encoded image string' })
+import { dragAsWindow, dragBack } from "@crabnebula/tauri-plugin-drag-as-window";
+import { appWindow, WebviewWindow } from "@tauri-apps/api/window";
+// alternatively you can pass a DOM element instead of its selector
+dragAsWindow('#my-drag-element', (payload) => {
+  console.log('dropped!')
+  // create the window with the content from the current element (that's is up to you!)
+  new WebviewWindow('label', {
+    x: payload.cursorPos.x,
+    y: payload.cursorPos.y,
+  })
+})
+
+const el = document.querySelector('#my-drag-element')
+el.ondragstart = (event) => {
+  event.preventDefault()
+
+  dragBack(event.target, { data: 'some data' }, (payload) => {
+    appWindow.close()
+  })
+}
 ```
 
 ## Examples
