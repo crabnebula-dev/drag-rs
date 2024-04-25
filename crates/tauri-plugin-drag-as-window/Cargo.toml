@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-drag-as-window"
-version = "0.1.0"
+version = "0.1.1"
 authors = [ "CrabNebula Ltd." ]
 description = "Start a drag operation from a DOM element to its own window"
 edition = "2021"
