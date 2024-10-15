@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-drag"
-version = "0.3.1"
+version = "1.0.0"
 authors = [ "CrabNebula Ltd." ]
 description = "Start a drag operation out of a Tauri window"
 edition = "2021"
