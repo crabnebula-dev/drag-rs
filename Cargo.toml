@@ -6,3 +6,19 @@ members = ["crates/*", "examples/*"]
 edition = "2021"
 authors = ["CrabNebula Ltd."]
 license = "Apache-2.0 OR MIT"
+
+[workspace.dependencies]
+tauri = "2.0.4"
+serde = "1"
+serde_json = "1"
+thiserror = "1"
+base64 = "0.21"
+tao = "0.30.3"
+winit = "0.30.5"
+wry = "0.46.1"
+dunce = "1.0.5"
+tauri-build = "2.0.1"
+tauri-plugin = { version = "2.0.1", features = ["build"] }
+drag = { path = "./crates/drag", version = "0.4.0", features = [ "serde" ] }
+tauri-plugin-drag = { path = "./crates/tauri-plugin-drag" }
+tauri-plugin-drag-as-window = { path = "./crates/tauri-plugin-drag-as-window", features = [ "global-js" ] }

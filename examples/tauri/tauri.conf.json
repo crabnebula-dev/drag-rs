@@ -7,10 +7,7 @@
   "tauri": {
     "bundle": {
       "identifier": "dev.crabnebula.drag",
-      "icon": [
-        "../icon.png",
-        "../icon.ico"
-      ],
+      "icon": ["../icon.png", "../icon.ico"],
       "resources": ["../icon.png"]
     },
     "windows": [

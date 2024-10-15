@@ -5,5 +5,5 @@ publish = false
 edition = "2021"
 
 [dependencies]
-drag = { path = "../../crates/drag" }
-tao = "0.16"
+drag.workspace = true
+tao.workspace = true

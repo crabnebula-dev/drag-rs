@@ -5,8 +5,8 @@ publish = false
 edition = "2021"
 
 [build-dependencies]
-tauri-build = "1"
+tauri-build.workspace = true
 
 [dependencies]
-tauri = { version = "1", features = [ "path-all"] }
-tauri-plugin-drag = { path = "../../crates/tauri-plugin-drag/" }
+tauri = { workspace = true, features = [] }
+tauri-plugin-drag.workspace = true

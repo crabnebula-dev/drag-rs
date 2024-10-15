@@ -4,17 +4,19 @@ version = "0.1.1"
 authors = [ "CrabNebula Ltd." ]
 description = "Start a drag operation from a DOM element to its own window"
 edition = "2021"
-rust-version = "1.60"
 license = { workspace = true }
 
 [dependencies]
-tauri = "1"
-serde = "1"
-serde_json = "1"
-thiserror = "1"
-drag = { path = "../drag", version = "0.4.0", features = [ "serde" ] }
-base64 = "0.21"
+tauri.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+drag.workspace = true
+base64.workspace = true
 tempfile = "3"
+
+[build-dependencies]
+tauri-plugin.workspace = true
 
 [features]
 global-js = [ ]

@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Default permissions for the plugin"
+permissions = ["allow-drag-new-window", "allow-drag-back", "allow-on-drop"]

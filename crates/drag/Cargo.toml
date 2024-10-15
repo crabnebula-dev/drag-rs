@@ -12,27 +12,27 @@ thiserror = "1"
 serde = { version = "1", optional = true }
 
 [dev-dependencies]
-tao = "0.16"
-winit = "0.29"
-wry = "0.24"
-tauri = "1"
+tao.workspace = true
+winit.workspace = true
+wry.workspace = true
+tauri.workspace = true
 
 [target."cfg(target_os = \"macos\")".dependencies]
-cocoa = "0.25"
-objc = "0.2"
-core-graphics = "0.23"
+cocoa = "0.26.0"
+objc = "0.2.7"
+core-graphics = "0.24.0"
 
 [target."cfg(any(target_os = \"linux\", target_os = \"dragonfly\", target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\"))".dependencies]
-gtk = { version = "0.15", features = [ "v3_20" ] }
-gdk = { version = "0.15", features = [ "v3_20" ] }
-gdkx11 = "0.15"
+gtk = { version = "0.18.1", features = [ "v3_20" ] }
+gdk = { version = "0.18.0", features = [ "v3_20" ] }
+gdkx11 = "0.18.0"
 
 [target."cfg(target_os = \"windows\")".dependencies]
-dunce = "1"
+dunce.workspace = true
 
-  [target."cfg(target_os = \"windows\")".dependencies.windows]
-  version = "0.52"
-  features = [
+[target."cfg(target_os = \"windows\")".dependencies.windows]
+version = "0.58.0"
+features = [
   "implement",
   "Win32_Foundation",
   "Win32_Graphics_Gdi",

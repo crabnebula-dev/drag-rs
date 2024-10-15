@@ -5,15 +5,8 @@ publish = false
 edition = "2021"
 
 [build-dependencies]
-tauri-build = "1"
+tauri-build.workspace = true
 
 [dependencies]
-tauri = { version = "1", features = [
-  "path-all",
-  "window-create",
-  "window-data-url",
-  "window-close",
-] }
-tauri-plugin-drag-as-window = { path = "../../crates/tauri-plugin-drag-as-window/", features = [
-  "global-js",
-] }
+tauri = { workspace = true, features = [] }
+tauri-plugin-drag-as-window.workspace = true
