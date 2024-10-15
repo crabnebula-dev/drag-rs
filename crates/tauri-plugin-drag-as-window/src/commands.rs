@@ -8,7 +8,8 @@ use std::{
 use base64::Engine;
 use serde::{ser::Serializer, Serialize};
 use tauri::{
-    api::ipc::CallbackFn, command, AppHandle, FileDropEvent, Manager, Runtime, Window, WindowEvent,
+    api::ipc::CallbackFn, command, AppHandle, FileDropEvent, Manager, Runtime, WebviewWindow,
+    WindowEvent,
 };
 
 type Result<T> = std::result::Result<T, Error>;
@@ -48,7 +49,7 @@ struct CallbackResult {
 }
 
 #[command]
-pub async fn on_drop<R: Runtime>(window: Window<R>, handler: CallbackFn) -> Result<()> {
+pub async fn on_drop<R: Runtime>(window: WebviewWindow<R>, handler: CallbackFn) -> Result<()> {
     let window_ = window.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::FileDrop(FileDropEvent::Dropped(paths)) = event {
@@ -79,7 +80,7 @@ pub async fn on_drop<R: Runtime>(window: Window<R>, handler: CallbackFn) -> Resu
 #[command]
 pub async fn drag_new_window<R: Runtime>(
     app: AppHandle<R>,
-    window: Window<R>,
+    window: WebviewWindow<R>,
     image_base64: String,
     on_event_fn: Option<CallbackFn>,
 ) -> Result<()> {
@@ -96,7 +97,7 @@ pub async fn drag_new_window<R: Runtime>(
 #[command]
 pub async fn drag_back<R: Runtime>(
     app: AppHandle<R>,
-    window: Window<R>,
+    window: WebviewWindow<R>,
     data: serde_json::Value,
     image_base64: String,
     on_event_fn: Option<CallbackFn>,
@@ -134,7 +135,7 @@ enum DragData {
 
 fn perform_drag<R: Runtime, F: Fn() + Send + Sync + 'static>(
     app: AppHandle<R>,
-    window: Window<R>,
+    window: WebviewWindow<R>,
     data: DragData,
     image_base64: String,
     on_event_fn: Option<CallbackFn>,

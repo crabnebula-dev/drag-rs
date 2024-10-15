@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::channel};
 
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
-use tauri::{api::ipc::CallbackFn, command, AppHandle, Runtime, Window};
+use tauri::{api::ipc::CallbackFn, command, AppHandle, Runtime, WebviewWindow};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -79,7 +79,7 @@ struct CallbackResult {
 #[command]
 pub async fn start_drag<R: Runtime>(
     app: AppHandle<R>,
-    window: Window<R>,
+    window: WebviewWindow<R>,
     item: DragItem,
     image: Image,
     on_event_fn: Option<CallbackFn>,
