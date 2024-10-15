@@ -23,8 +23,8 @@ objc = "0.2.7"
 core-graphics = "0.24.0"
 
 [target."cfg(any(target_os = \"linux\", target_os = \"dragonfly\", target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\"))".dependencies]
-gtk = { version = "0.18.1", features = [ "v3_20" ] }
-gdk = { version = "0.18.0", features = [ "v3_20" ] }
+gtk = { version = "0.18.1" }
+gdk = { version = "0.18.0" }
 gdkx11 = "0.18.0"
 
 [target."cfg(target_os = \"windows\")".dependencies]
