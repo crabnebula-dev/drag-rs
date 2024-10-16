@@ -104,7 +104,7 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
-    _options: &Options,
+    options: &Options,
 ) {
     let window_clone = window.clone();
     let handler_ids_clone = handler_ids.clone();
