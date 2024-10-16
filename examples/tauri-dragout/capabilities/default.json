@@ -2,15 +2,11 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the all window",
-  "windows": [
-    "*"
-  ],
+  "windows": ["*"],
   "permissions": [
     "core:default",
     "core:webview:allow-create-webview-window",
     "core:window:allow-close",
-    "drag-as-window:allow-drag-back",
-    "drag-as-window:allow-drag-new-window",
-    "drag-as-window:allow-on-drop"
+    "drag-as-window:default"
   ]
 }

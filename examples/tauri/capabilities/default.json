@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Capability for the all window",
   "windows": ["*"],
-  "permissions": ["core:default", "drag:allow-start-drag"]
+  "permissions": ["core:default", "drag:default"]
 }
