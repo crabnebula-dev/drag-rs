@@ -12,7 +12,7 @@ tauri.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-drag.workspace = true
+drag = { path = "../drag", version = "1.0.0", features = [ "serde" ] }
 base64.workspace = true
 tempfile = "3"
 
