@@ -5,6 +5,7 @@ authors = [ "CrabNebula Ltd." ]
 description = "Start a drag operation from a DOM element to its own window"
 edition = "2021"
 license = { workspace = true }
+links = "tauri-plugin-drag-as-window"
 
 [dependencies]
 tauri.workspace = true

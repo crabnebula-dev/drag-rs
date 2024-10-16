@@ -8,8 +8,7 @@ use std::{
 use base64::Engine;
 use serde::{ser::Serializer, Serialize};
 use tauri::{
-    api::ipc::CallbackFn, command, AppHandle, FileDropEvent, Manager, Runtime, WebviewWindow,
-    WindowEvent,
+    command, ipc::Channel, AppHandle, DragDropEvent, Manager, Runtime, WebviewWindow, WindowEvent,
 };
 
 type Result<T> = std::result::Result<T, Error>;
@@ -41,18 +40,20 @@ impl Serialize for Error {
     }
 }
 
-#[derive(Serialize)]
-struct CallbackResult {
+#[derive(Clone, Serialize)]
+pub struct CallbackResult {
     result: drag::DragResult,
     #[serde(rename = "cursorPos")]
     cursor_pos: drag::CursorPosition,
 }
 
 #[command]
-pub async fn on_drop<R: Runtime>(window: WebviewWindow<R>, handler: CallbackFn) -> Result<()> {
-    let window_ = window.clone();
+pub async fn on_drop<R: Runtime>(
+    window: WebviewWindow<R>,
+    handler: Channel<serde_json::Value>,
+) -> Result<()> {
     window.on_window_event(move |event| {
-        if let WindowEvent::FileDrop(FileDropEvent::Dropped(paths)) = event {
+        if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, position: _ }) = event {
             let path = paths.first().unwrap();
             if path
                 .file_name()
@@ -64,10 +65,7 @@ pub async fn on_drop<R: Runtime>(window: WebviewWindow<R>, handler: CallbackFn) 
                     .ok()
                     .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
                 {
-                    let js = tauri::api::ipc::format_callback(handler, &data)
-                        .expect("unable to serialize DragResult");
-
-                    let _ = window_.eval(js.as_str());
+                    let _ = handler.send(data);
                 } else {
                     eprintln!("failed to read {}", path.display());
                 }
@@ -82,16 +80,9 @@ pub async fn drag_new_window<R: Runtime>(
     app: AppHandle<R>,
     window: WebviewWindow<R>,
     image_base64: String,
-    on_event_fn: Option<CallbackFn>,
+    on_event: Channel<CallbackResult>,
 ) -> Result<()> {
-    perform_drag(
-        app,
-        window,
-        DragData::Data,
-        image_base64,
-        on_event_fn,
-        || {},
-    )
+    perform_drag(app, window, DragData::Data, image_base64, on_event, || {})
 }
 
 #[command]
@@ -100,7 +91,7 @@ pub async fn drag_back<R: Runtime>(
     window: WebviewWindow<R>,
     data: serde_json::Value,
     image_base64: String,
-    on_event_fn: Option<CallbackFn>,
+    on_event: Channel<CallbackResult>,
 ) -> Result<()> {
     let data = serde_json::to_vec(&data)?;
 
@@ -116,7 +107,7 @@ pub async fn drag_back<R: Runtime>(
         window,
         DragData::Path(path),
         image_base64,
-        on_event_fn,
+        on_event,
         move || {
             let file_ = file.clone();
             // wait a litle to delete the file
@@ -138,7 +129,7 @@ fn perform_drag<R: Runtime, F: Fn() + Send + Sync + 'static>(
     window: WebviewWindow<R>,
     data: DragData,
     image_base64: String,
-    on_event_fn: Option<CallbackFn>,
+    on_event: Channel<CallbackResult>,
     handler: F,
 ) -> Result<()> {
     let (tx, rx) = channel();
@@ -164,18 +155,13 @@ fn perform_drag<R: Runtime, F: Fn() + Send + Sync + 'static>(
                     DragData::Path(p) => drag::DragItem::Files(vec![p]),
                     DragData::Data => drag::DragItem::Data {
                         provider: Box::new(|_type| Some(Vec::new())),
-                        types: vec![window.config().tauri.bundle.identifier.clone()],
+                        types: vec![window.config().identifier.clone()],
                     },
                 },
                 image,
                 move |result, cursor_pos| {
-                    if let Some(on_event_fn) = on_event_fn {
-                        let callback_result = CallbackResult { result, cursor_pos };
-                        let js = tauri::api::ipc::format_callback(on_event_fn, &callback_result)
-                            .expect("unable to serialize CallbackResult");
-
-                        let _ = window.eval(js.as_str());
-                    }
+                    let callback_result = CallbackResult { result, cursor_pos };
+                    let _ = on_event.send(callback_result);
 
                     handler();
                 },

@@ -11,3 +11,4 @@ serde.workspace = true
 serde_json.workspace = true
 wry.workspace = true
 dunce.workspace = true
+tao.workspace = true

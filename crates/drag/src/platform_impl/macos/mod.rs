@@ -14,7 +14,7 @@ use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
 };
-use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::{CursorPosition, DragItem, DragResult, Image, Options};
 
@@ -50,16 +50,16 @@ impl NSString {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Send + 'static>(
+pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
     on_drop_callback: F,
     options: Options,
 ) -> crate::Result<()> {
-    if let RawWindowHandle::AppKit(w) = handle.raw_window_handle() {
+    if let Ok(RawWindowHandle::AppKit(w)) = handle.window_handle().map(|h| h.as_raw()) {
         unsafe {
-            let window = w.ns_window as id;
+            let window: id = msg_send![w.ns_view.as_ptr() as id, window];
             // wry replaces the ns_view so we don't really use AppKitWindowHandle::ns_view
             let ns_view: id = msg_send![window, contentView];
 
@@ -238,7 +238,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
                             1
                         } else {
                             // NSDragOperationEvery
-                            NSUInteger::max_value()
+                            NSUInteger::MAX
                         }
                     }
 

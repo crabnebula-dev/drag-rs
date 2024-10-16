@@ -24,7 +24,7 @@ There's two ways to consume this crate API: from Rust code via the `drag` crate 
   let preview_icon = drag::Image::Raw(include_bytes!("../../icon.png").to_vec());
   ```
 
-- Use the `drag::start_drag` function. It takes a `&T: raw_window_handle::HasRawWindowHandle` type on macOS and Windows, and a `&gtk::ApplicationWindow` on Linux:
+- Use the `drag::start_drag` function. It takes a `&T: raw_window_handle::HasWindowHandle` type on macOS and Windows, and a `&gtk::ApplicationWindow` on Linux:
 
   - tao:
   ```rust
@@ -46,18 +46,18 @@ There's two ways to consume this crate API: from Rust code via the `drag` crate 
 
   - wry:
   ```rust
-  let event_loop = wry::application::event_loop::EventLoop::new();
-  let window = wry::application::window::WindowBuilder::new().build(&event_loop).unwrap();
-  let webview = wry::webview::WebViewBuilder::new(window).unwrap().build().unwrap();
+  let event_loop = tao::event_loop::EventLoop::new();
+  let window = tao::window::WindowBuilder::new().build(&event_loop).unwrap();
+  let webview = wry::WebViewBuilder::new().build(&window).unwrap();
 
   drag::start_drag(
     #[cfg(target_os = "linux")]
     {
-      use wry::application::platform::unix::WindowExtUnix;
-      webview.window().gtk_window()
+      use tao::platform::unix::WindowExtUnix;
+      window.gtk_window()
     },
     #[cfg(not(target_os = "linux"))]
-    &webview.window(),
+    &window,
     item,
     preview_icon,
   );
@@ -160,7 +160,7 @@ fn main() {
 
 ```javascript
 import { dragAsWindow, dragBack } from "@crabnebula/tauri-plugin-drag-as-window";
-import { appWindow, WebviewWindow } from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
 // alternatively you can pass a DOM element instead of its selector
 dragAsWindow('#my-drag-element', (payload) => {
   console.log('dropped!')
@@ -176,7 +176,7 @@ el.ondragstart = (event) => {
   event.preventDefault()
 
   dragBack(event.target, { data: 'some data' }, (payload) => {
-    appWindow.close()
+    getCurrentWebviewWindow().close()
   })
 }
 ```

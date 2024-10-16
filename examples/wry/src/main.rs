@@ -3,20 +3,20 @@
 // SPDX-License-Identifier: MIT
 
 use drag::{start_drag, CursorPosition, DragItem, DragResult, Image};
-use wry::application::{
+use tao::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    event_loop::{ControlFlow, EventLoopBuilder},
+    window::WindowBuilder,
 };
-use wry::webview::WebViewBuilder;
+use wry::{http::Request, WebViewBuilder};
 
 enum UserEvent {
     StartDrag,
 }
 
 fn main() -> wry::Result<()> {
-    let event_loop = EventLoop::with_user_event();
+    let event_loop = EventLoopBuilder::with_user_event().build();
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(400., 100.))
         .with_title("Drag Example")
@@ -59,17 +59,17 @@ fn main() -> wry::Result<()> {
   "#;
 
     let proxy = event_loop.create_proxy();
-    let handler = move |_w: &Window, req: String| {
-        if req == "startDrag" {
+    let handler = move |req: Request<String>| {
+        if req.body() == "startDrag" {
             let _ = proxy.send_event(UserEvent::StartDrag);
         }
     };
 
-    let webview = WebViewBuilder::new(window)?
-        .with_html(HTML)?
+    let _webview = WebViewBuilder::new()
+        .with_html(HTML)
         .with_ipc_handler(handler)
         .with_accept_first_mouse(true)
-        .build()?;
+        .build(&window)?;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -86,11 +86,11 @@ fn main() -> wry::Result<()> {
                     start_drag(
                         #[cfg(target_os = "linux")]
                         {
-                            use wry::application::platform::unix::WindowExtUnix;
-                            webview.window().gtk_window()
+                            use tao::platform::unix::WindowExtUnix;
+                            window.gtk_window()
                         },
                         #[cfg(not(target_os = "linux"))]
-                        &webview.window(),
+                        &window,
                         DragItem::Files(vec![
                             std::fs::canonicalize("./examples/icon.png").unwrap(),
                             std::fs::canonicalize("./examples/icon.bmp").unwrap(),

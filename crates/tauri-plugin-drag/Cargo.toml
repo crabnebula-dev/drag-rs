@@ -5,6 +5,7 @@ authors = [ "CrabNebula Ltd." ]
 description = "Start a drag operation out of a Tauri window"
 edition = "2021"
 license = { workspace = true }
+links = "tauri-plugin-drag"
 
 [dependencies]
 tauri.workspace = true

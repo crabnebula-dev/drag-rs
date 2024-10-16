@@ -7,3 +7,4 @@ edition = "2021"
 [dependencies]
 drag.workspace = true
 wry.workspace = true
+tao.workspace = true

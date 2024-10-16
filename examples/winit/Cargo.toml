@@ -6,4 +6,4 @@ edition = "2021"
 
 [target."cfg(not(target_os = \"linux\"))".dependencies]
 drag.workspace = true
-winit = { version = "0.30", default-features = false, features = [ "rwh_05" ] }
+winit.workspace = true

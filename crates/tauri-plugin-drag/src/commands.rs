@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::channel};
 
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
-use tauri::{api::ipc::CallbackFn, command, AppHandle, Runtime, WebviewWindow};
+use tauri::{command, ipc::Channel, AppHandle, Runtime, WebviewWindow};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -24,7 +24,7 @@ impl Serialize for Error {
     }
 }
 
-struct Base64Image(String);
+pub struct Base64Image(String);
 
 impl<'de> Deserialize<'de> for Base64Image {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
@@ -43,14 +43,14 @@ impl<'de> Deserialize<'de> for Base64Image {
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-enum Image {
+pub enum Image {
     Base64(Base64Image),
     Raw(drag::Image),
 }
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-enum DragItem {
+pub enum DragItem {
     /// A list of files to be dragged.
     ///
     /// The paths must be absolute.
@@ -64,13 +64,13 @@ enum DragItem {
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-enum SharedData {
+pub enum SharedData {
     Fixed(String),
     Map(HashMap<String, String>),
 }
 
-#[derive(Serialize)]
-struct CallbackResult {
+#[derive(Serialize, Clone)]
+pub struct CallbackResult {
     result: drag::DragResult,
     #[serde(rename = "cursorPos")]
     cursor_pos: drag::CursorPosition,
@@ -82,7 +82,7 @@ pub async fn start_drag<R: Runtime>(
     window: WebviewWindow<R>,
     item: DragItem,
     image: Image,
-    on_event_fn: Option<CallbackFn>,
+    on_event: Channel<CallbackResult>,
 ) -> Result<()> {
     let (tx, rx) = channel();
 
@@ -115,16 +115,8 @@ pub async fn start_drag<R: Runtime>(
                 },
                 image,
                 move |result, cursor_pos| {
-                    if let Some(on_event_fn) = on_event_fn {
-                        let callback_result = CallbackResult { result, cursor_pos };
-                        let js = tauri::api::ipc::format_callback(
-                            on_event_fn,
-                            &serde_json::to_string(&callback_result).unwrap(),
-                        )
-                        .expect("unable to serialize DragResult");
-
-                        let _ = window.eval(js.as_str());
-                    }
+                    let callback_result = CallbackResult { result, cursor_pos };
+                    let _ = on_event.send(callback_result);
                 },
                 Default::default(),
             )
