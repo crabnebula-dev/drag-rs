@@ -109,6 +109,8 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     let window_clone = window.clone();
     let handler_ids_clone = handler_ids.clone();
 
+    let skip_animatation_on_cancel_or_failure = options.skip_animatation_on_cancel_or_failure;
+
     handler_ids
         .lock()
         .unwrap()
@@ -119,7 +121,11 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
             );
 
             cleanup_signal_handlers(&handler_ids_clone, &window_clone);
-            Propagation::Stop
+            if skip_animatation_on_cancel_or_failure {
+                Propagation::Stop
+            } else {
+                Propagation::Proceed
+            }
         }));
 }
 
