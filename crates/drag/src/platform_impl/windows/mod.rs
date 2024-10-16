@@ -222,6 +222,7 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
             DragItem::Files(files) => {
                 init_ole();
                 unsafe {
+                    #[allow(static_mut_refs)]
                     if let Err(e) = &OLE_RESULT {
                         return Err(e.clone().into());
                     }
@@ -264,6 +265,7 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
             DragItem::Data { .. } => {
                 init_ole();
                 unsafe {
+                    #[allow(static_mut_refs)]
                     if let Err(e) = &OLE_RESULT {
                         return Err(e.clone().into());
                     }
