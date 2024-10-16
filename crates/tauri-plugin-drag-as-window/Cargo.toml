@@ -18,6 +18,3 @@ tempfile = "3"
 
 [build-dependencies]
 tauri-plugin.workspace = true
-
-[features]
-global-js = [ ]

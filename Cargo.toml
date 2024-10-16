@@ -21,4 +21,4 @@ tauri-build = "2.0.1"
 tauri-plugin = { version = "2.0.1", features = ["build"] }
 drag = { path = "./crates/drag", version = "1.0.0", features = [ "serde" ] }
 tauri-plugin-drag = { path = "./crates/tauri-plugin-drag", version = "1.0.0" }
-tauri-plugin-drag-as-window = { path = "./crates/tauri-plugin-drag-as-window", version = "1.0.0", features = [ "global-js" ] }
+tauri-plugin-drag-as-window = { path = "./crates/tauri-plugin-drag-as-window", version = "1.0.0" }
