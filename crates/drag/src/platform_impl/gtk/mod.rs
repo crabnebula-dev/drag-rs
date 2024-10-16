@@ -5,12 +5,13 @@
 use crate::{CursorPosition, DragItem, DragResult, Error, Image, Options};
 use gdkx11::{
     gdk,
-    glib::{ObjectExt, SignalHandlerId},
+    glib::{ObjectExt, Propagation, SignalHandlerId},
 };
 use gtk::{
     gdk_pixbuf,
-    prelude::{DragContextExtManual, PixbufLoaderExt, WidgetExt, WidgetExtManual},
-    Inhibit,
+    prelude::{
+        DeviceExt, DragContextExtManual, PixbufLoaderExt, SeatExt, WidgetExt, WidgetExtManual,
+    },
 };
 use std::{
     rc::Rc,
@@ -103,12 +104,10 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     callback: Rc<F>,
     window: &gtk::ApplicationWindow,
     handler_ids: &Arc<Mutex<Vec<SignalHandlerId>>>,
-    options: &Options,
+    _options: &Options,
 ) {
     let window_clone = window.clone();
     let handler_ids_clone = handler_ids.clone();
-
-    let skip_animatation_on_cancel_or_failure = options.skip_animatation_on_cancel_or_failure;
 
     handler_ids
         .lock()
@@ -120,7 +119,7 @@ fn on_drop_failed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
             );
 
             cleanup_signal_handlers(&handler_ids_clone, &window_clone);
-            Inhibit(skip_animatation_on_cancel_or_failure)
+            Propagation::Stop
         }));
 }
 
