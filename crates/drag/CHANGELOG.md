@@ -1,5 +1,9 @@
 # Changelog
 
+## \[2.0.0]
+
+- [`244887f`](https://github.com/crabnebula-dev/drag-rs/commit/244887fa36b12ac615919b9d2d149edca3d1f1c7) Update to tauri v2.
+
 ## \[0.4.0]
 
 - [`639e0fd`](https://github.com/crabnebula-dev/drag-rs/commit/639e0fd801109d88007d0aeafe04367cdc251eb7) Added the cursor position of the drop event as the `start_drag` callback closure second argument.
