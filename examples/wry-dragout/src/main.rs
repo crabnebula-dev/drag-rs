@@ -7,19 +7,18 @@ use drag::{start_drag, CursorPosition, DragItem, DragResult, Image};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use wry::application::dpi::LogicalPosition;
-use wry::application::event_loop::EventLoopWindowTarget;
-use wry::application::window::WindowId;
-use wry::webview::{FileDropEvent, WebViewBuilder};
-use wry::{
-    application::{
-        dpi::LogicalSize,
-        event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop, EventLoopProxy},
-        window::{Window, WindowBuilder},
-    },
-    webview::WebView,
+use tao::dpi::LogicalPosition;
+use tao::event_loop::{EventLoopBuilder, EventLoopWindowTarget};
+use tao::window::WindowId;
+use tao::{
+    dpi::LogicalSize,
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoopProxy},
+    window::{Window, WindowBuilder},
 };
+use wry::http::Request;
+use wry::WebView;
+use wry::{DragDropEvent, WebViewBuilder};
 
 enum UserEvent {
     StartDragOut(WindowId, String, Option<drag::Image>),
@@ -57,18 +56,18 @@ impl<'de> Deserialize<'de> for Base64Image {
 }
 
 fn main() -> wry::Result<()> {
-    let event_loop = EventLoop::with_user_event();
+    let event_loop = EventLoopBuilder::with_user_event().build();
     let proxy = event_loop.create_proxy();
 
     let mut webviews = HashMap::new();
 
-    let webview = create_main_window(
+    let (window, webview) = create_main_window(
         String::from("Drag Example - First Window"),
         &event_loop,
         proxy.clone(),
         None,
     )?;
-    webviews.insert(webview.window().id(), webview);
+    webviews.insert(window.id(), (window, webview));
 
     event_loop.run(move |event, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -85,7 +84,7 @@ fn main() -> wry::Result<()> {
                 }
             }
             Event::UserEvent(UserEvent::NewWindow(cursor_pos, item)) => {
-                let webview = create_new_window(
+                let (window, webview) = create_new_window(
                     format!("Window {}", webviews.len() + 1),
                     event_loop,
                     proxy.clone(),
@@ -93,7 +92,7 @@ fn main() -> wry::Result<()> {
                     item,
                 )
                 .unwrap();
-                webviews.insert(webview.window().id(), webview);
+                webviews.insert(window.id(), (window, webview));
             }
             Event::UserEvent(UserEvent::CloseWindow(id)) => {
                 webviews.remove(&id);
@@ -102,14 +101,14 @@ fn main() -> wry::Result<()> {
                 }
             }
             Event::UserEvent(UserEvent::PopulateElement(id, item)) => {
-                let webview = &webviews.get(&id).unwrap();
+                let (_window, webview) = &webviews.get(&id).unwrap();
                 let mut js = "window.appendElement('".to_owned();
                 js.push_str(&item);
                 js.push_str("')");
                 let _ = webview.evaluate_script(&js);
             }
             Event::UserEvent(UserEvent::RemoveElement(id, item)) => {
-                let webview = &webviews.get(&id).unwrap();
+                let (_window, webview) = &webviews.get(&id).unwrap();
                 let mut js = "window.removeElement('".to_owned();
                 js.push_str(&item);
                 js.push_str("')");
@@ -117,7 +116,7 @@ fn main() -> wry::Result<()> {
             }
 
             Event::UserEvent(UserEvent::StartDragOut(id, item, icon)) => {
-                let webview = &webviews.get(&id).unwrap();
+                let (window, _webview) = &webviews.get(&id).unwrap();
                 let proxy = proxy.clone();
 
                 let icon = match icon {
@@ -131,11 +130,11 @@ fn main() -> wry::Result<()> {
                 start_drag(
                     #[cfg(target_os = "linux")]
                     {
-                        use wry::application::platform::unix::WindowExtUnix;
-                        webview.window().gtk_window()
+                        use tao::platform::unix::WindowExtUnix;
+                        window.gtk_window()
                     },
                     #[cfg(not(target_os = "linux"))]
-                    &webview.window(),
+                    &window,
                     DragItem::Data {
                         provider: Box::new(|_| Some(Vec::new())),
                         types: vec!["com.app.myapp.v2".into()],
@@ -154,7 +153,7 @@ fn main() -> wry::Result<()> {
                 .unwrap();
             }
             Event::UserEvent(UserEvent::StartDragBack(id, item, icon)) => {
-                let webview = &webviews.get(&id).unwrap();
+                let (window, _webview) = &webviews.get(&id).unwrap();
                 let proxy = proxy.clone();
 
                 let icon = match icon {
@@ -170,11 +169,11 @@ fn main() -> wry::Result<()> {
                 start_drag(
                     #[cfg(target_os = "linux")]
                     {
-                        use wry::application::platform::unix::WindowExtUnix;
-                        webview.window().gtk_window()
+                        use tao::platform::unix::WindowExtUnix;
+                        window.gtk_window()
                     },
                     #[cfg(not(target_os = "linux"))]
-                    &webview.window(),
+                    &window,
                     DragItem::Files(paths),
                     icon,
                     move |result: DragResult, cursor_pos: CursorPosition| {
@@ -199,7 +198,7 @@ fn create_main_window(
     event_loop: &EventLoopWindowTarget<UserEvent>,
     proxy: EventLoopProxy<UserEvent>,
     position: Option<CursorPosition>,
-) -> wry::Result<WebView> {
+) -> wry::Result<(Window, WebView)> {
     const HTML: &str = r#"
 <!DOCTYPE html>
 <html lang="en">
@@ -281,12 +280,12 @@ fn create_main_window(
         window_builder = window_builder.with_position(LogicalPosition::new(position.x, position.y));
     }
 
-    let window = window_builder.build(event_loop)?;
+    let window = window_builder.build(event_loop).unwrap();
     let window_id = window.id();
 
-    let file_drop_proxy = proxy.clone();
-    let handler = move |_w: &Window, req: String| {
-        if let Ok(payload) = serde_json::from_str::<Payload>(&req) {
+    let drag_drop_proxy = proxy.clone();
+    let handler = move |req: Request<String>| {
+        if let Ok(payload) = serde_json::from_str::<Payload>(req.body()) {
             if payload.action == "start-drag" {
                 let icon = drag::Image::Raw(
                     base64::engine::general_purpose::STANDARD
@@ -296,14 +295,14 @@ fn create_main_window(
                 let _ =
                     proxy.send_event(UserEvent::StartDragOut(window_id, payload.item, Some(icon)));
             }
-        } else if req.as_str() == "close" {
+        } else if req.body() == "close" {
             let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
         }
     };
-    let file_drop_handler = move |_w: &Window, req: FileDropEvent| {
-        if let FileDropEvent::Dropped(paths) = req {
+    let drag_drop_handler = move |req: DragDropEvent| {
+        if let DragDropEvent::Drop { paths, position: _ } = req {
             for f in paths {
-                let _ = file_drop_proxy.send_event(UserEvent::PopulateElement(
+                let _ = drag_drop_proxy.send_event(UserEvent::PopulateElement(
                     window_id,
                     dunce::canonicalize(f)
                         .unwrap()
@@ -318,13 +317,13 @@ fn create_main_window(
         // need to return true to prevent triggering OS drop behavior
         true
     };
-    let webview = WebViewBuilder::new(window)?
-        .with_html(HTML)?
+    let webview = WebViewBuilder::new()
+        .with_html(HTML)
         .with_ipc_handler(handler)
         .with_accept_first_mouse(true)
-        .with_file_drop_handler(file_drop_handler)
-        .build()?;
-    Ok(webview)
+        .with_drag_drop_handler(drag_drop_handler)
+        .build(&window)?;
+    Ok((window, webview))
 }
 
 fn create_new_window(
@@ -333,7 +332,7 @@ fn create_new_window(
     proxy: EventLoopProxy<UserEvent>,
     position: Option<CursorPosition>,
     id: String,
-) -> wry::Result<WebView> {
+) -> wry::Result<(Window, WebView)> {
     let html: String = r#"
 <!DOCTYPE html>
 <html lang="en">
@@ -405,11 +404,11 @@ fn create_new_window(
         window_builder = window_builder.with_position(LogicalPosition::new(position.x, position.y));
     }
 
-    let window = window_builder.build(event_loop)?;
+    let window = window_builder.build(event_loop).unwrap();
     let window_id = window.id();
 
-    let handler = move |_w: &Window, req: String| {
-        if let Ok(payload) = serde_json::from_str::<Payload>(&req) {
+    let handler = move |request: Request<String>| {
+        if let Ok(payload) = serde_json::from_str::<Payload>(request.body()) {
             if payload.action == "start-drag" {
                 let icon = drag::Image::Raw(
                     base64::engine::general_purpose::STANDARD
@@ -422,16 +421,16 @@ fn create_new_window(
                     Some(icon),
                 ));
             }
-        } else if req.as_str() == "close" {
+        } else if request.body() == "close" {
             let _ = proxy.send_event(UserEvent::CloseWindow(window_id));
         }
     };
 
-    let webview = WebViewBuilder::new(window)?
-        .with_html(html)?
+    let webview = WebViewBuilder::new()
+        .with_html(html)
         .with_ipc_handler(handler)
         .with_accept_first_mouse(true)
-        .build()?;
+        .build(&window)?;
 
-    Ok(webview)
+    Ok((window, webview))
 }

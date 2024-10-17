@@ -51,7 +51,7 @@ jobs:
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y  webkit2gtk-4.0
+          sudo apt-get install -y  webkit2gtk-4.1
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
@@ -69,7 +69,7 @@ jobs:
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y webkit2gtk-4.0
+          sudo apt-get install -y webkit2gtk-4.1
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --lib --bins --tests --benches --all-features --no-fail-fast

@@ -4,16 +4,16 @@ version = "0.0.0"
 publish = false
 edition = "2021"
 
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "tauri_plugin_drag_as_window_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
-tauri-build = "1"
+tauri-build.workspace = true
 
 [dependencies]
-tauri = { version = "1", features = [
-  "path-all",
-  "window-create",
-  "window-data-url",
-  "window-close",
-] }
-tauri-plugin-drag-as-window = { path = "../../crates/tauri-plugin-drag-as-window/", features = [
-  "global-js",
-] }
+tauri = { workspace = true, features = [] }
+tauri-plugin-drag-as-window.workspace = true

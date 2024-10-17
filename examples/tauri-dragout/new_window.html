@@ -22,13 +22,13 @@
 <body>
   <div id="drop-zone" class="drag-zone"></div>
   <script type="text/javascript">
-    const windowLabel = window.__TAURI__.window.appWindow.label;
+    const windowLabel = window.__TAURI__.webviewWindow.getCurrentWebviewWindow().label;
 
     window.__TAURI__.event.listen(`init-${windowLabel}`, (event) =>
       initPage(event)
     );
     window.__TAURI__.event.emit(`loaded-${windowLabel}`, {
-      window: window.__TAURI__.window.appWindow.label,
+      window: window.__TAURI__.webviewWindow.getCurrentWebviewWindow().label,
     });
 
     function initPage(event) {
@@ -49,7 +49,7 @@
       const el = event.target;
 
       window.__TAURI__.dragAsWindow.dragBack(el, { id: el.id }, async (_) => {
-        window.__TAURI__.window.appWindow.close();
+        window.__TAURI__.webviewWindow.getCurrentWebviewWindow().close();
       });
     }
   </script>

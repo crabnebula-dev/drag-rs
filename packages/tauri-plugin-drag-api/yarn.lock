@@ -140,10 +140,10 @@
   resolved "https://registry.yarnpkg.com/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.3.0.tgz#0b9bcc159b93c911efb5a2c39ec5d70dd0a589dc"
   integrity sha512-dMvGV8p92GQ8jhNlGIKpyhVZPzJlT258pPrM5q2F8lKcc9Iv9BbfdnhX1OfinYWnb9ms5zLw6MlaMnqLfUkKnQ==
 
-"@tauri-apps/api@^1.5.4":
-  version "1.5.4"
-  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-1.5.4.tgz#69bf7f93abe7b00d69c313016a6c1d0d59dca5cd"
-  integrity sha512-LKYae9URbdEdbHrOXBeXb/lZgVyWTX0E98rSFBuQlmkLr8OeG+akuE41PfLjBVyk1Q+fq7wxo4ieenLSMUAUhA==
+"@tauri-apps/api@^2.0.0":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.0.2.tgz#266767f4a4641014e86a000e7e02e1a344ced45a"
+  integrity sha512-3wSwmG+1kr6WrgAFKK5ijkNFPp8TT3FLj3YHUb5EwMO+3FxX4uWlfSWkeeBy+Kc1RsKzugtYLuuya+98Flj+3w==
 
 "@types/estree@^1.0.0":
   version "1.0.5"

@@ -15,7 +15,7 @@
 //!
 //! `$ cargo add drag`
 //!
-//! - Use the `drag::start_drag` function. It takes a `&T: raw_window_handle::HasRawWindowHandle` type on macOS and Windows, and a `&gtk::ApplicationWindow` on Linux:
+//! - Use the `drag::start_drag` function. It takes a `&T: raw_window_handle::HasWindowHandle` type on macOS and Windows, and a `&gtk::ApplicationWindow` on Linux:
 //!
 //! - tao:
 //!   ```rust,no_run
@@ -44,9 +44,9 @@
 //!
 //!   - wry:
 //!   ```rust,no_run
-//!   let event_loop = wry::application::event_loop::EventLoop::new();
-//!   let window = wry::application::window::WindowBuilder::new().build(&event_loop).unwrap();
-//!   let webview = wry::webview::WebViewBuilder::new(window).unwrap().build().unwrap();
+//!   let event_loop = tao::event_loop::EventLoop::new();
+//!   let window = tao::window::WindowBuilder::new().build(&event_loop).unwrap();
+//!   let webview = wry::WebViewBuilder::new().build(&window).unwrap();
 //!
 //!   let item = drag::DragItem::Files(vec![std::fs::canonicalize("./examples/icon.png").unwrap()]);
 //!   let preview_icon = drag::Image::File("./examples/icon.png".into());
@@ -54,11 +54,11 @@
 //!   drag::start_drag(
 //!     #[cfg(target_os = "linux")]
 //!     {
-//!       use wry::application::platform::unix::WindowExtUnix;
-//!       webview.window().gtk_window()
+//!       use tao::platform::unix::WindowExtUnix;
+//!       window.gtk_window()
 //!     },
 //!     #[cfg(not(target_os = "linux"))]
-//!     &webview.window(),
+//!     &window,
 //!     item,
 //!     preview_icon,
 //!     |result, cursor_position| {
@@ -69,9 +69,8 @@
 //!   ```
 //!
 //!   - winit:
-//!   ```rust,no_run
-//!   let event_loop = winit::event_loop::EventLoop::new().unwrap();
-//!   let window = winit::window::WindowBuilder::new().build(&event_loop).unwrap();
+//!   ```rust,ignore
+//!   let window = ...winit window;
 //!
 //!   let item = drag::DragItem::Files(vec![std::fs::canonicalize("./examples/icon.png").unwrap()]);
 //!   let preview_icon = drag::Image::File("./examples/icon.png".into());
@@ -116,7 +115,7 @@ pub enum Error {
     FailedToGetCursorPosition,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum DragResult {
     Dropped,
@@ -160,7 +159,7 @@ pub enum Image {
 /// Logical position of the cursor.
 ///
 /// - **Windows**: Currently the win32 API for logical position reports physical position as well, due to the complicated nature of potential multiple monitor with different scaling there's no trivial solution to be incorporated.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct CursorPosition {
     pub x: i32,

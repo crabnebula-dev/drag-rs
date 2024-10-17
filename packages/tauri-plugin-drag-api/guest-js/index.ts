@@ -1,4 +1,4 @@
-import { invoke, transformCallback } from "@tauri-apps/api/tauri";
+import { invoke, Channel } from "@tauri-apps/api/core";
 
 export type DragItem =
   | string[]
@@ -57,9 +57,13 @@ export async function startDrag(
   options: Options,
   onEvent?: (result: CallbackPayload) => void
 ): Promise<void> {
+  const onEventChannel = new Channel<CallbackPayload>();
+  if (onEvent) {
+    onEventChannel.onmessage = onEvent;
+  }
   await invoke("plugin:drag|start_drag", {
     item: options.item,
     image: options.icon,
-    onEventFn: onEvent ? transformCallback(onEvent) : null,
+    onEvent: onEventChannel,
   });
 }

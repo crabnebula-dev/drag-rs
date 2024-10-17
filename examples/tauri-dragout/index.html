@@ -50,8 +50,8 @@
       window.__TAURI__.dragAsWindow.dragAsWindow(el, async (payload) => {
         try {
           console.log("creating window");
-          /* Create window by template HTML, and use event to exchange required info */
-          createWindowByHtmlTemplate(el, payload);
+          /* Create window and use event to exchange required info */
+          createWindow(el, payload);
 
           el.remove();
         } catch (e) {
@@ -60,8 +60,8 @@
       }).catch(err => console.error('failed to drag', err));
     }
 
-    function createWindowByHtmlTemplate(el, payload) {
-      const newWindow = new window.__TAURI__.window.WebviewWindow(el.id, {
+    function createWindow(el, payload) {
+      const newWindow = new window.__TAURI__.webviewWindow.WebviewWindow(el.id, {
         url: 'new_window.html',
         title: `New Window ${el.id}`,
         width: el.clientWidth,
@@ -69,6 +69,7 @@
         x: payload.cursorPos.x,
         y: payload.cursorPos.y,
       });
+
       window.__TAURI__.event.once(`loaded-${el.id}`, (_event) => {
         window.__TAURI__.event.emit(`init-${el.id}`, {
           id: el.id,

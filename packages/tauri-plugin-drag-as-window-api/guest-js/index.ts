@@ -1,4 +1,4 @@
-import { invoke, transformCallback } from "@tauri-apps/api/tauri";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import html2canvas from "html2canvas";
 
 type DragResult = "Dropped" | "Cancelled";
@@ -26,8 +26,10 @@ export interface CallbackPayload {
  * @param handler closure that is called when a DOM element gets dropped in this window
  */
 export async function onElementDrop(handler: (data: any) => void) {
+  const handlerChannel = new Channel<any>();
+  handlerChannel.onmessage = handler;
   await invoke("plugin:drag-as-window|on_drop", {
-    handler: transformCallback(handler),
+    handler: handlerChannel,
   });
 }
 
@@ -39,7 +41,7 @@ export async function onElementDrop(handler: (data: any) => void) {
  *
  * ```typescript
  * import { dragBack } from "@crabnebula/tauri-plugin-drag-as-window";
- * import { WebviewWindow } from "@tauri-apps/api/window";
+ * import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
  *
  * const el = document.querySelector("#my-target")
  * await dragBack(el, (payload) => {
@@ -66,15 +68,15 @@ export async function dragAsWindow(
   }
   const canvas = await html2canvas(element as HTMLElement, { logging: false });
 
+  const onDropChannel = new Channel<RawCallbackPayload>();
+  if (onDrop) {
+    onDropChannel.onmessage = (payload) =>
+      onDrop({ cursorPos: payload.cursorPos });
+  }
+
   await invoke("plugin:drag-as-window|drag_new_window", {
     imageBase64: canvas.toDataURL("image/png"),
-    onEventFn: onDrop
-      ? transformCallback((payload: RawCallbackPayload) => {
-          onDrop({
-            cursorPos: payload.cursorPos,
-          });
-        })
-      : null,
+    onEvent: onDropChannel,
   });
 }
 
@@ -104,15 +106,15 @@ export async function dragBack(
   }
   const canvas = await html2canvas(element as HTMLElement, { logging: false });
 
+  const onEventChannel = new Channel<RawCallbackPayload>();
+  if (onEvent) {
+    onEventChannel.onmessage = (payload) =>
+      onEvent({ cursorPos: payload.cursorPos });
+  }
+
   await invoke("plugin:drag-as-window|drag_back", {
     data,
     imageBase64: canvas.toDataURL("image/png"),
-    onEventFn: onEvent
-      ? transformCallback((payload: RawCallbackPayload) => {
-          onEvent({
-            cursorPos: payload.cursorPos,
-          });
-        })
-      : null,
+    onEvent: onEventChannel,
   });
 }

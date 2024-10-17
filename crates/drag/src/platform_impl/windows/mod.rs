@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::{CursorPosition, DragItem, DragResult, Image, Options};
 
@@ -210,18 +210,19 @@ impl IDataObject_Impl for DataObject {
     }
 }
 
-pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Send + 'static>(
+pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send + 'static>(
     handle: &W,
     item: DragItem,
     image: Image,
     on_drop_callback: F,
     _options: Options,
 ) -> crate::Result<()> {
-    if let RawWindowHandle::Win32(_w) = handle.raw_window_handle() {
+    if let Ok(RawWindowHandle::Win32(_w)) = handle.window_handle().map(|h| h.as_raw()) {
         match item {
             DragItem::Files(files) => {
                 init_ole();
                 unsafe {
+                    #[allow(static_mut_refs)]
                     if let Err(e) = &OLE_RESULT {
                         return Err(e.clone().into());
                     }
@@ -264,6 +265,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
             DragItem::Data { .. } => {
                 init_ole();
                 unsafe {
+                    #[allow(static_mut_refs)]
                     if let Err(e) = &OLE_RESULT {
                         return Err(e.clone().into());
                     }
