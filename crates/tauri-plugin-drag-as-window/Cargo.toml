@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-drag-as-window"
-version = "1.0.0"
+version = "2.0.0"
 authors = [ "CrabNebula Ltd." ]
 description = "Start a drag operation from a DOM element to its own window"
 edition = "2021"
@@ -12,7 +12,7 @@ tauri.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-drag = { path = "../drag", version = "1.0.0", features = [ "serde" ] }
+drag = { path = "../drag", version = "2.0.0", features = [ "serde" ] }
 base64.workspace = true
 tempfile = "3"
 
