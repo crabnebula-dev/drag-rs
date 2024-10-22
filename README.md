@@ -2,7 +2,7 @@
 
 Start a drag operation out of a window on macOS, Windows and Linux (via GTK).
 
-Tested for [tao](https://github.com/tauri-apps/tao) (latest), [winit](https://github.com/rust-windowing/winit) (latest), [wry](https://github.com/tauri-apps/wry) (v0.24) and [tauri](https://github.com/tauri-apps/tauri) (v1) windows.
+Tested for [tao](https://github.com/tauri-apps/tao) (latest), [winit](https://github.com/rust-windowing/winit) (latest), [wry](https://github.com/tauri-apps/wry) (v0.46) and [tauri](https://github.com/tauri-apps/tauri) (v2) windows.
 Due to the GTK-based implementation, winit currently cannot leverage this crate on Linux yet.
 
 This project also includes a Tauri plugin for simplified usage on Tauri apps.
@@ -120,6 +120,20 @@ fn main() {
 }
 ```
 
+- Add permissions
+
+`capabilities/default.json`
+
+```json
+{
+    ...
+    "permissions": [
+        ...
+        "drag:default"
+    ]
+}
+```
+
 - Afterwards all the plugin's APIs are available through the JavaScript guest bindings:
 
 ```javascript
@@ -153,6 +167,20 @@ fn main() {
         .plugin(tauri_plugin_drag_as_window::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+```
+
+- Add permissions
+
+`capabilities/default.json`
+
+```json
+{
+    ...
+    "permissions": [
+        ...
+        "drag-as-window:default"
+    ]
 }
 ```
 
