@@ -6,14 +6,14 @@ on:
     - cron: "0 0 * * *"
   push:
     branches:
-      - main
+      - v1
     paths:
       - ".github/workflows/audit.yml"
       - "**/Cargo.lock"
       - "**/Cargo.toml"
   pull_request:
     branches:
-      - main
+      - v1
     paths:
       - ".github/workflows/audit.yml"
       - "**/Cargo.lock"
