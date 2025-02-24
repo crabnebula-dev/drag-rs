@@ -1,5 +1,10 @@
 # Changelog
 
+## \[2.1.0]
+
+- [`229aa3e`](https://github.com/crabnebula-dev/drag-rs/commit/229aa3e26c85c31074abd3b4a4538b2ec65eb094) Added `mode` option to `drag::Options` to either copy or move a file.
+- [`1e7adfd`](https://github.com/crabnebula-dev/drag-rs/commit/1e7adfd9662bc1be6d369f438ee749e908dee02a) Fix crash on macOS systems running Intel or older macOS releases.
+
 ## \[2.0.0]
 
 - [`244887f`](https://github.com/crabnebula-dev/drag-rs/commit/244887fa36b12ac615919b9d2d149edca3d1f1c7) Update to tauri v2.

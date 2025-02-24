@@ -1,5 +1,13 @@
 # Changelog
 
+## \[2.1.0]
+
+- [`229aa3e`](https://github.com/crabnebula-dev/drag-rs/commit/229aa3e26c85c31074abd3b4a4538b2ec65eb094) Added `mode` drag option to either copy or move a file.
+
+### Dependencies
+
+- Upgraded to `drag@2.1.0`
+
 ## \[2.0.0]
 
 - [`244887f`](https://github.com/crabnebula-dev/drag-rs/commit/244887fa36b12ac615919b9d2d149edca3d1f1c7) Update to tauri v2.
