@@ -23,7 +23,7 @@ concurrency:
 jobs:
   rustfmt:
     if: ${{ !startsWith(github.head_ref, 'renovate/') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [ubuntu-22.04, macos-latest, windows-latest]
 
     runs-on: ${{ matrix.platform }}
 
@@ -48,7 +48,7 @@ jobs:
         with:
           components: clippy
       - name: install webkit2gtk
-        if: matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y  webkit2gtk-4.0
@@ -59,14 +59,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [ubuntu-22.04, macos-latest, windows-latest]
 
     runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
       - name: install webkit2gtk
-        if: matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y webkit2gtk-4.0
@@ -75,7 +75,7 @@ jobs:
       - run: cargo test --workspace --lib --bins --tests --benches --all-features --no-fail-fast
 
   deny:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v1
