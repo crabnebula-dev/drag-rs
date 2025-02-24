@@ -1,5 +1,9 @@
 # Changelog
 
+## \[0.4.1]
+
+- [`b32dc37`](https://github.com/crabnebula-dev/drag-rs/commit/b32dc37910345253a6ab27d9fdf451697d5b1737)([#57](https://github.com/crabnebula-dev/drag-rs/pull/57)) Fix crash on macOS systems running Intel or older macOS releases.
+
 ## \[0.4.0]
 
 - [`639e0fd`](https://github.com/crabnebula-dev/drag-rs/commit/639e0fd801109d88007d0aeafe04367cdc251eb7) Added the cursor position of the drop event as the `start_drag` callback closure second argument.
