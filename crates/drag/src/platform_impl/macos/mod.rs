@@ -5,7 +5,7 @@
 use std::ffi::{c_char, c_void};
 
 use cocoa::{
-    appkit::{NSAlignmentOptions, NSApp, NSEvent, NSEventModifierFlags, NSEventType, NSImage},
+    appkit::{NSApp, NSEvent, NSEventModifierFlags, NSEventType, NSImage},
     base::{id, nil},
     foundation::{NSArray, NSData, NSPoint, NSRect, NSSize, NSUInteger},
 };
@@ -63,8 +63,7 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
             // wry replaces the ns_view so we don't really use AppKitWindowHandle::ns_view
             let ns_view: id = msg_send![window, contentView];
 
-            let mouse_location: NSPoint = msg_send![window, mouseLocationOutsideOfEventStream];
-            let current_position: NSPoint = msg_send![ns_view, backingAlignedRect: NSRect::new(mouse_location, NSSize::new(0., 0.)) options: NSAlignmentOptions::NSAlignAllEdgesOutward];
+            let current_position: NSPoint = msg_send![window, mouseLocationOutsideOfEventStream];
 
             let img: id = msg_send![class!(NSImage), alloc];
             let img: id = match image {
@@ -285,7 +284,11 @@ pub fn start_drag<W: HasRawWindowHandle, F: Fn(DragResult, CursorPosition) + Sen
             (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
             (*source).set_ivar(
                 "animate_on_cancel_or_failure",
-                !options.skip_animatation_on_cancel_or_failure,
+                if options.skip_animatation_on_cancel_or_failure {
+                    YES
+                } else {
+                    NO
+                },
             );
 
             let _: () = msg_send![ns_view, beginDraggingSessionWithItems: dragging_items event: drag_event source: source];
