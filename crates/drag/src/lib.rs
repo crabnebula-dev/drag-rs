@@ -82,8 +82,7 @@
 //!   ```
 
 #[cfg(target_os = "macos")]
-#[macro_use]
-extern crate objc;
+use objc2::{Encode, Encoding};
 
 use std::path::PathBuf;
 
@@ -139,24 +138,17 @@ pub enum DragItem {
     },
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(u64)]
 pub enum DragMode {
+    #[default]
     Copy = 1,  // NSDragOperationCopy
     Move = 16, // NSDragOperationMove
 }
 
-impl Default for DragMode {
-    fn default() -> Self {
-        DragMode::Copy
-    }
-}
-
 #[cfg(target_os = "macos")]
-unsafe impl objc::Encode for DragMode {
-    fn encode() -> objc::Encoding {
-        unsafe { objc::Encoding::from_str("Q") } // unsigned long long
-    }
+unsafe impl Encode for DragMode {
+    const ENCODING: Encoding = Encoding::ULongLong;
 }
 
 #[derive(Default)]

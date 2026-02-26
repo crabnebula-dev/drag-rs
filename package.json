@@ -1,0 +1,5 @@
+{
+	"dependencies": {
+		"@crabnebula/tauri-plugin-drag-as-window": "^2.1.0"
+	}
+}
