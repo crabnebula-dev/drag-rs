@@ -81,7 +81,3 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           rust-version: "1.93"
-          # override a problematic 'unmaintained' field introduced by the bump to cargo-deny-action@v2
-          # ideally, a more solid solution for future deny check
-          command: check --config 'advisories.unmaintained="all"'
-          arguments: --all-features
