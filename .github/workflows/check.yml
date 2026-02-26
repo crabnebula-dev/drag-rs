@@ -81,6 +81,3 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           rust-version: "1.93"
-          # Explicitly list the checks to run, omitting 'licenses'
-          command: check --config 'advisories.unmaintained="all"' advisories bans sources
-          arguments: --all-features
