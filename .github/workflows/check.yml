@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [ ubuntu-latest, macos-latest, windows-latest ]
 
     runs-on: ${{ matrix.platform }}
 
@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [ ubuntu-latest, macos-latest, windows-latest ]
 
     runs-on: ${{ matrix.platform }}
 
@@ -82,4 +82,7 @@ jobs:
         with:
           rust-version: "1.93"
           command: check
-          arguments: --all-features
+          log-level: warn
+          # override a problematic 'unmaintained' field introduced by the bump to cargo-deny-action@v2
+          # ideally, a more solid solution for future deny check
+          arguments: --all-features --config 'advisories.unmaintained="all"'
