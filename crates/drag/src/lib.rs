@@ -142,7 +142,7 @@ pub enum DragItem {
 #[repr(u64)]
 pub enum DragMode {
     #[default]
-    Copy = 1,  // NSDragOperationCopy
+    Copy = 1, // NSDragOperationCopy
     Move = 16, // NSDragOperationMove
 }
 

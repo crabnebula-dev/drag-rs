@@ -106,9 +106,7 @@ struct DragRsDataProviderIvars {
 impl DragRsDataProvider {
     pub fn new(provider: crate::DataProvider, mtm: MainThreadMarker) -> Retained<Self> {
         let provider_ptr = DataProviderPtr::from_box(provider);
-        let this = Self::alloc(mtm).set_ivars(DragRsDataProviderIvars {
-            provider_ptr,
-        });
+        let this = Self::alloc(mtm).set_ivars(DragRsDataProviderIvars { provider_ptr });
         unsafe { msg_send![super(this), init] }
     }
 }
@@ -130,7 +128,8 @@ define_class!(
             _context: NSDraggingContext,
         ) -> objc2_app_kit::NSDragOperation {
             let ivars = self.ivars();
-            session.setAnimatesToStartingPositionsOnCancelOrFail(ivars.animate_on_cancel_or_failure);
+            session
+                .setAnimatesToStartingPositionsOnCancelOrFail(ivars.animate_on_cancel_or_failure);
 
             match ivars.drag_mode {
                 DragMode::Copy => objc2_app_kit::NSDragOperation::Copy,
