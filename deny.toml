@@ -1,3 +1,4 @@
+[graph]
 # Target triples to include when checking. This is essentially our supported target list.
 targets = [
     { triple = "x86_64-unknown-linux-gnu" },
@@ -36,15 +37,5 @@ ignore = true
 
 [advisories]
 # The lint level for crates that have been marked as unmaintained
-unmaintained = "workspace"
-# List of advisory IDs to ignore
-ignore = [
-    "RUSTSEC-2025-0098", # unic-ucd-version: Unmaintained
-    "RUSTSEC-2025-0100", # unic-ucd-ident: Unmaintained
-    "RUSTSEC-2025-0080", # unic-common: Unmaintained
-    "RUSTSEC-2025-0057", # fxhash: Unmaintained
-    "RUSTSEC-2024-0415", # gtk: Unmaintained
-    "RUSTSEC-2024-0384", # instant: Unmaintained
-    "RUSTSEC-2024-0370", # proc-macro-error: Unmaintained
-    "RUSTSEC-2023-0081", # safemem: Unmaintained
-]
+unmaintained = "none"
+
