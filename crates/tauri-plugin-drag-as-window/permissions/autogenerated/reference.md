@@ -2,6 +2,8 @@
 
 Default permissions for the plugin
 
+#### This default permission set includes the following:
+
 - `allow-drag-new-window`
 - `allow-drag-back`
 - `allow-on-drop`
