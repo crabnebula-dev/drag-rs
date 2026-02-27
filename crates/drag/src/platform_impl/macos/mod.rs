@@ -44,28 +44,6 @@ impl DataProviderPtr {
     }
 }
 
-#[derive(Clone, Copy)]
-struct OnDropCallbackPtr(NonNull<OnDropCallback>);
-
-impl OnDropCallbackPtr {
-    fn from_box(callback: OnDropCallback) -> Self {
-        let ptr = Box::into_raw(Box::new(callback));
-        // SAFETY: Box::into_raw never returns null.
-        Self(unsafe { NonNull::new_unchecked(ptr) })
-    }
-
-    unsafe fn as_ref(&self) -> &OnDropCallback {
-        // SAFETY: Pointer comes from Box::into_raw in from_box and remains valid
-        // until consumed exactly once by into_box.
-        unsafe { self.0.as_ref() }
-    }
-
-    unsafe fn into_box(self) -> Box<OnDropCallback> {
-        // SAFETY: Pointer originates from Box::into_raw and ownership is reclaimed once.
-        unsafe { Box::from_raw(self.0.as_ptr()) }
-    }
-}
-
 define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
@@ -144,7 +122,7 @@ define_class!(
             ended_at_point: NSPoint,
             operation: objc2_app_kit::NSDragOperation,
         ) {
-            let callback = self.ivars().on_drop_ptr;
+            let callback = &self.ivars().on_drop_callback;
 
             let mouse_location = CursorPosition {
                 x: ended_at_point.x as i32,
@@ -158,14 +136,12 @@ define_class!(
             } else {
                 callback_closure(DragResult::Dropped, mouse_location);
             }
-
-            drop(callback.into_box());
         }
     }
 );
 
 struct DragRsSourceIvars {
-    on_drop_ptr: OnDropCallbackPtr,
+    on_drop_callback: OnDropCallback,
     animate_on_cancel_or_failure: bool,
     drag_mode: DragMode,
 }
@@ -177,10 +153,9 @@ impl DragRsSource {
         mtm: MainThreadMarker,
     ) -> Retained<Self> {
         let on_drop_callback: OnDropCallback = Box::new(on_drop_callback);
-        let callback_ptr = OnDropCallbackPtr::from_box(on_drop_callback);
 
         let this = Self::alloc(mtm).set_ivars(DragRsSourceIvars {
-            on_drop_ptr: callback_ptr,
+            on_drop_callback,
             animate_on_cancel_or_failure: !options.skip_animatation_on_cancel_or_failure,
             drag_mode: options.mode,
         });
