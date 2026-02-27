@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use std::ptr::NonNull;
-
 use core_graphics::display::CGDisplay;
 use objc2::{
     define_class, msg_send,
@@ -21,28 +19,6 @@ use objc2_app_kit::{
 };
 
 type OnDropCallback = Box<dyn Fn(DragResult, CursorPosition) + Send>;
-
-#[derive(Clone, Copy)]
-struct DataProviderPtr(NonNull<crate::DataProvider>);
-
-impl DataProviderPtr {
-    fn from_box(provider: crate::DataProvider) -> Self {
-        let ptr = Box::into_raw(Box::new(provider));
-        // SAFETY: Box::into_raw never returns null.
-        Self(unsafe { NonNull::new_unchecked(ptr) })
-    }
-
-    unsafe fn as_ref(&self) -> &crate::DataProvider {
-        // SAFETY: Pointer comes from Box::into_raw in from_box and remains valid
-        // until consumed exactly once by into_box.
-        unsafe { self.0.as_ref() }
-    }
-
-    unsafe fn into_box(self) -> Box<crate::DataProvider> {
-        // SAFETY: Pointer originates from Box::into_raw and ownership is reclaimed once.
-        unsafe { Box::from_raw(self.0.as_ptr()) }
-    }
-}
 
 define_class!(
     #[unsafe(super(NSObject))]
@@ -62,7 +38,7 @@ define_class!(
             data_type: &NSString,
         ) {
             let ivars = self.ivars();
-            let provider = ivars.provider_ptr.as_ref();
+            let provider = &ivars.provider;
 
             if let Some(data) = provider(&data_type.to_string()) {
                 let ns_data = NSData::from_vec(data);
@@ -72,19 +48,18 @@ define_class!(
 
         #[unsafe(method(pasteboardFinishedWithDataProvider:))]
         unsafe fn pasteboard_finished(&self, _pasteboard: &objc2_app_kit::NSPasteboard) {
-            drop(self.ivars().provider_ptr.into_box());
+            // drop(&self.ivars().provider);
         }
     }
 );
 
 struct DragRsDataProviderIvars {
-    provider_ptr: DataProviderPtr,
+    provider: crate::DataProvider,
 }
 
 impl DragRsDataProvider {
     pub fn new(provider: crate::DataProvider, mtm: MainThreadMarker) -> Retained<Self> {
-        let provider_ptr = DataProviderPtr::from_box(provider);
-        let this = Self::alloc(mtm).set_ivars(DragRsDataProviderIvars { provider_ptr });
+        let this = Self::alloc(mtm).set_ivars(DragRsDataProviderIvars { provider });
         unsafe { msg_send![super(this), init] }
     }
 }
