@@ -81,9 +81,6 @@
 //!   }, Default::default());
 //!   ```
 
-#[cfg(target_os = "macos")]
-use objc2::{Encode, Encoding};
-
 use std::path::PathBuf;
 
 mod platform_impl;
@@ -147,8 +144,13 @@ pub enum DragMode {
 }
 
 #[cfg(target_os = "macos")]
-unsafe impl Encode for DragMode {
-    const ENCODING: Encoding = Encoding::ULongLong;
+impl From<DragMode> for objc2_app_kit::NSDragOperation {
+    fn from(value: DragMode) -> Self {
+        match value {
+            DragMode::Copy => objc2_app_kit::NSDragOperation::Copy,
+            DragMode::Move => objc2_app_kit::NSDragOperation::Move,
+        }
+    }
 }
 
 #[derive(Default)]

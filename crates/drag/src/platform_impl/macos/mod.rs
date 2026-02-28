@@ -84,10 +84,7 @@ define_class!(
             session
                 .setAnimatesToStartingPositionsOnCancelOrFail(ivars.animate_on_cancel_or_failure);
 
-            match ivars.drag_mode {
-                DragMode::Copy => objc2_app_kit::NSDragOperation::Copy,
-                DragMode::Move => objc2_app_kit::NSDragOperation::Move,
-            }
+            ivars.drag_mode.into()
         }
 
         #[unsafe(method(draggingSession:endedAtPoint:operation:))]
