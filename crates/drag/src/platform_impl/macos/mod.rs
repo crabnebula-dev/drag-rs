@@ -16,6 +16,7 @@ use crate::{CursorPosition, DragItem, DragMode, DragResult, Image, Options};
 use objc2_app_kit::{
     NSApp, NSDraggingContext, NSDraggingItem, NSDraggingSession, NSDraggingSource, NSEvent,
     NSEventModifierFlags, NSEventType, NSImage, NSPasteboardItem, NSPasteboardItemDataProvider,
+    NSView,
 };
 
 type OnDropCallback = Box<dyn Fn(DragResult, CursorPosition) + Send>;
@@ -42,7 +43,7 @@ define_class!(
 
             if let Some(data) = provider(&data_type.to_string()) {
                 let ns_data = NSData::from_vec(data);
-                let _: () = msg_send![item, setData: &*ns_data, forType: data_type];
+                let _ = item.setData_forType(&ns_data, data_type);
             }
         }
     }
@@ -140,9 +141,9 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
     if let Ok(RawWindowHandle::AppKit(w)) = handle.window_handle().map(|h| h.as_raw()) {
         unsafe {
             let mtm = MainThreadMarker::new_unchecked();
-            let ns_view: *mut objc2::runtime::AnyObject = w.ns_view.as_ptr() as *mut _;
-            let window: Retained<objc2_app_kit::NSWindow> = msg_send![ns_view, window];
-            let ns_view = window.contentView().expect("Failed to get contentView");
+            let ns_view = &*(w.ns_view.as_ptr() as *const NSView);
+            let window = ns_view.window().expect("Failed to get window");
+            let content_view = window.contentView().expect("Failed to get contentView");
 
             let current_position: NSPoint = window.mouseLocationOutsideOfEventStream();
 
@@ -230,12 +231,11 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
 
             let source = DragRsSource::new(on_drop_callback, &options, mtm);
 
-            let _: Retained<NSDraggingSession> = msg_send![
-                &*ns_view,
-                beginDraggingSessionWithItems: &*dragging_items,
-                event: &*drag_event,
-                source: &*ProtocolObject::<dyn NSDraggingSource>::from_retained(source),
-            ];
+            let _ = content_view.beginDraggingSessionWithItems_event_source(
+                &dragging_items,
+                &drag_event,
+                &ProtocolObject::<dyn NSDraggingSource>::from_retained(source),
+            );
 
             Ok(())
         }
