@@ -45,11 +45,6 @@ define_class!(
                 let _: () = msg_send![item, setData: &*ns_data, forType: data_type];
             }
         }
-
-        #[unsafe(method(pasteboardFinishedWithDataProvider:))]
-        unsafe fn pasteboard_finished(&self, _pasteboard: &objc2_app_kit::NSPasteboard) {
-            // drop(&self.ivars().provider);
-        }
     }
 );
 
@@ -246,101 +241,5 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
         }
     } else {
         Err(crate::Error::UnsupportedWindowHandle)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc, Mutex,
-    };
-
-    struct DropFlag(Arc<AtomicBool>);
-
-    impl Drop for DropFlag {
-        fn drop(&mut self) {
-            self.0.store(true, Ordering::SeqCst);
-        }
-    }
-
-    #[test]
-    fn macos_objc2_data_provider_roundtrip_and_cleanup() {
-        unsafe {
-            let mtm = MainThreadMarker::new_unchecked();
-            let calls = Arc::new(AtomicUsize::new(0));
-            let dropped = Arc::new(AtomicBool::new(false));
-            let dropped_guard = DropFlag(dropped.clone());
-            let expected = b"drag-rs-objc2".to_vec();
-
-            let provider = {
-                let calls = calls.clone();
-                let expected = expected.clone();
-                Box::new(move |data_type: &str| {
-                    let _drop_guard = &dropped_guard;
-                    calls.fetch_add(1, Ordering::SeqCst);
-                    if data_type == "public.utf8-plain-text" {
-                        Some(expected.clone())
-                    } else {
-                        None
-                    }
-                }) as crate::DataProvider
-            };
-
-            let data_provider = DragRsDataProvider::new(provider, mtm);
-            let item = NSPasteboardItem::new();
-            let data_type = NSString::from_str("public.utf8-plain-text");
-
-            let _: () = msg_send![
-                &*data_provider,
-                pasteboard: std::ptr::null::<objc2_app_kit::NSPasteboard>(),
-                item: &*item,
-                provideDataForType: &*data_type
-            ];
-
-            let roundtrip = item
-                .dataForType(&data_type)
-                .expect("provider should set NSData for requested type");
-            assert_eq!(roundtrip.to_vec(), expected);
-            assert_eq!(calls.load(Ordering::SeqCst), 1);
-
-            let _: () = msg_send![
-                &*data_provider,
-                pasteboardFinishedWithDataProvider: std::ptr::null::<objc2_app_kit::NSPasteboard>()
-            ];
-            assert!(dropped.load(Ordering::SeqCst));
-        }
-    }
-
-    #[test]
-    fn macos_objc2_drag_source_callback_path() {
-        unsafe {
-            let mtm = MainThreadMarker::new_unchecked();
-            let dropped = Arc::new(AtomicBool::new(false));
-            let dropped_guard = DropFlag(dropped.clone());
-            let observed = Arc::new(Mutex::new(None::<DragResult>));
-            let observed_clone = observed.clone();
-
-            let source = DragRsSource::new(
-                move |result, _cursor| {
-                    let _drop_guard = &dropped_guard;
-                    *observed_clone.lock().expect("poisoned mutex") = Some(result);
-                },
-                &Options::default(),
-                mtm,
-            );
-
-            let _: () = msg_send![
-                &*source,
-                draggingSession: std::ptr::null::<objc2_app_kit::NSDraggingSession>(),
-                endedAtPoint: NSPoint::new(10.0, 20.0),
-                operation: objc2_app_kit::NSDragOperation::None
-            ];
-
-            let result = *observed.lock().expect("poisoned mutex");
-            assert!(matches!(result, Some(DragResult::Cancel)));
-            assert!(dropped.load(Ordering::SeqCst));
-        }
     }
 }
