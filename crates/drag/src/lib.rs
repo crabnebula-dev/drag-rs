@@ -155,6 +155,7 @@ impl From<DragMode> for objc2_app_kit::NSDragOperation {
 
 #[derive(Default)]
 pub struct Options {
+    // TODO: Fix typo in v3
     pub skip_animatation_on_cancel_or_failure: bool,
     pub mode: DragMode,
 }
