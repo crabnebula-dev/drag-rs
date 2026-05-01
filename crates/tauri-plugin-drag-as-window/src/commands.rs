@@ -8,7 +8,8 @@ use std::{
 use base64::Engine;
 use serde::{ser::Serializer, Deserialize, Serialize};
 use tauri::{
-    command, ipc::Channel, AppHandle, DragDropEvent, Manager, Runtime, WebviewWindow, WindowEvent,
+    command, ipc::Channel, AppHandle, DragDropEvent, Manager, Runtime, Webview, WebviewEvent,
+    Window, WindowEvent,
 };
 
 type Result<T> = std::result::Result<T, Error>;
@@ -81,36 +82,52 @@ impl From<DragOptions> for drag::Options {
 
 #[command]
 pub async fn on_drop<R: Runtime>(
-    window: WebviewWindow<R>,
+    window: Window<R>,
+    webview: Webview<R>,
     handler: Channel<serde_json::Value>,
 ) -> Result<()> {
+    let webview_handler = handler.clone();
+
     window.on_window_event(move |event| {
         if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, position: _ }) = event {
-            let path = paths.first().unwrap();
-            if path
-                .file_name()
-                .and_then(|f| f.to_str())
-                .map(|f| f.starts_with(FILE_PREFIX))
-                .unwrap_or_default()
-            {
-                if let Some(data) = read(path)
-                    .ok()
-                    .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-                {
-                    let _ = handler.send(data);
-                } else {
-                    eprintln!("failed to read {}", path.display());
-                }
-            }
+            handle_drop(paths, &handler);
+        }
+    });
+
+    webview.on_webview_event(move |event| {
+        if let WebviewEvent::DragDrop(DragDropEvent::Drop { paths, position: _ }) = event {
+            handle_drop(paths, &webview_handler);
         }
     });
     Ok(())
 }
 
+fn handle_drop(paths: &[PathBuf], handler: &Channel<serde_json::Value>) {
+    let Some(path) = paths.first() else {
+        return;
+    };
+
+    if path
+        .file_name()
+        .and_then(|f| f.to_str())
+        .map(|f| f.starts_with(FILE_PREFIX))
+        .unwrap_or_default()
+    {
+        if let Some(data) = read(path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        {
+            let _ = handler.send(data);
+        } else {
+            eprintln!("failed to read {}", path.display());
+        }
+    }
+}
+
 #[command]
 pub async fn drag_new_window<R: Runtime>(
     app: AppHandle<R>,
-    window: WebviewWindow<R>,
+    window: Window<R>,
     image_base64: String,
     on_event: Channel<CallbackResult>,
     options: Option<DragOptions>,
@@ -129,7 +146,7 @@ pub async fn drag_new_window<R: Runtime>(
 #[command]
 pub async fn drag_back<R: Runtime>(
     app: AppHandle<R>,
-    window: WebviewWindow<R>,
+    window: Window<R>,
     data: serde_json::Value,
     image_base64: String,
     on_event: Channel<CallbackResult>,
@@ -169,7 +186,7 @@ enum DragData {
 
 fn perform_drag<R: Runtime, F: Fn() + Send + Sync + 'static>(
     app: AppHandle<R>,
-    window: WebviewWindow<R>,
+    window: Window<R>,
     data: DragData,
     image_base64: String,
     drag_options: DragOptions,

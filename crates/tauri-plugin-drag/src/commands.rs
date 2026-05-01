@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::channel};
 
 use serde::{ser::Serializer, Deserialize, Deserializer, Serialize};
-use tauri::{command, ipc::Channel, AppHandle, Runtime, WebviewWindow};
+use tauri::{command, ipc::Channel, AppHandle, Runtime, Window};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -111,7 +111,7 @@ impl From<DragOptions> for drag::Options {
 #[command]
 pub async fn start_drag<R: Runtime>(
     app: AppHandle<R>,
-    window: WebviewWindow<R>,
+    window: Window<R>,
     item: DragItem,
     image: Image,
     options: Option<DragOptions>,
