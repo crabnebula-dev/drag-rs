@@ -17,3 +17,6 @@ tauri-build.workspace = true
 [dependencies]
 tauri = { workspace = true, features = [] }
 tauri-plugin-drag.workspace = true
+
+[features]
+default = ["tauri/wry"]
