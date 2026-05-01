@@ -1,5 +1,10 @@
 # Changelog
 
+## \[2.1.1]
+
+- [`1585483`](https://github.com/crabnebula-dev/drag-rs/commit/15854834ee1d77ae8c0b2078d66e807ad22675b5) ([#75](https://github.com/crabnebula-dev/drag-rs/pull/75) by [@Cristian-Vogel](https://github.com/crabnebula-dev/drag-rs/../../Cristian-Vogel)) Migrated from `objc` to `objc2`. **Breaking Change:** Removed macOS-specific `impl objc::Encode for DragMode` implementation.
+- [`8c88ba0`](https://github.com/crabnebula-dev/drag-rs/commit/8c88ba0084615f2b1e7796d9ff7611b37f5ea31b) ([#65](https://github.com/crabnebula-dev/drag-rs/pull/65) by [@jaspwr](https://github.com/crabnebula-dev/drag-rs/../../jaspwr)) Changed the minimum version of the `raw-window-handle` rust crate from `0.6.2` to `0.6.0`.
+
 ## \[2.1.0]
 
 - [`229aa3e`](https://github.com/crabnebula-dev/drag-rs/commit/229aa3e26c85c31074abd3b4a4538b2ec65eb094) Added `mode` option to `drag::Options` to either copy or move a file.

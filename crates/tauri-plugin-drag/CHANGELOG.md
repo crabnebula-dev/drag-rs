@@ -1,5 +1,15 @@
 # Changelog
 
+## \[2.1.1]
+
+- [`542e030`](https://github.com/crabnebula-dev/drag-rs/commit/542e030b7c0e0cc8e74e1501bf82edbefe02349a) ([#81](https://github.com/crabnebula-dev/drag-rs/pull/81) by [@lucasfernog-crabnebula](https://github.com/crabnebula-dev/drag-rs/../../lucasfernog-crabnebula)) Do not enable tauri default features.
+- [`d84fa66`](https://github.com/crabnebula-dev/drag-rs/commit/d84fa66f97f6f6d5dbf01c280c9408a3649a2124) ([#83](https://github.com/crabnebula-dev/drag-rs/pull/83) by [@lucasfernog-crabnebula](https://github.com/crabnebula-dev/drag-rs/../../lucasfernog-crabnebula)) Support multi-webview setups.
+- [`1585483`](https://github.com/crabnebula-dev/drag-rs/commit/15854834ee1d77ae8c0b2078d66e807ad22675b5) ([#75](https://github.com/crabnebula-dev/drag-rs/pull/75) by [@Cristian-Vogel](https://github.com/crabnebula-dev/drag-rs/../../Cristian-Vogel)) Migrated from `objc` to `objc2`. **Breaking Change:** Removed macOS-specific `impl objc::Encode for DragMode` implementation.
+
+### Dependencies
+
+- Upgraded to `drag@2.1.1`
+
 ## \[2.1.0]
 
 - [`229aa3e`](https://github.com/crabnebula-dev/drag-rs/commit/229aa3e26c85c31074abd3b4a4538b2ec65eb094) Added `mode` drag option to either copy or move a file.
