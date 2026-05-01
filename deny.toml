@@ -1,3 +1,4 @@
+[graph]
 # Target triples to include when checking. This is essentially our supported target list.
 targets = [
     { triple = "x86_64-unknown-linux-gnu" },
@@ -19,6 +20,7 @@ allow = [
     "ISC",
     # Apparently for us it's equivalent to BSD-3 which is considered compatible with MIT and Apache-2.0
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     # Used by webpki-roots and option-ext which we are using without modifications in a larger work, therefore okay.
     "MPL-2.0",
     "BSD-2-Clause",
@@ -32,3 +34,8 @@ allow = [
 # To see how to mark a crate as unpublished (to the official registry),
 # visit https://doc.rust-lang.org/cargo/reference/manifest.html#the-publish-field.
 ignore = true
+
+[advisories]
+# The lint level for crates that have been marked as unmaintained
+unmaintained = "none"
+

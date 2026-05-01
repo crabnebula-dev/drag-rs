@@ -2,54 +2,132 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use std::{
-    ffi::{c_char, c_void},
-    sync::atomic::{AtomicBool, Ordering},
-};
-
-use cocoa::{
-    appkit::{NSApp, NSEvent, NSEventModifierFlags, NSEventType, NSImage},
-    base::{id, nil},
-    foundation::{NSArray, NSData, NSPoint, NSRect, NSSize, NSUInteger},
-};
 use core_graphics::display::CGDisplay;
-use objc::{
-    declare::ClassDecl,
-    runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
+use objc2::{
+    define_class, msg_send,
+    rc::Retained,
+    runtime::{NSObject, NSObjectProtocol, ProtocolObject},
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly,
 };
+use objc2_foundation::{NSArray, NSData, NSMutableArray, NSPoint, NSRect, NSSize, NSString, NSURL};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::{CursorPosition, DragItem, DragMode, DragResult, Image, Options};
+use objc2_app_kit::{
+    NSApp, NSDraggingContext, NSDraggingItem, NSDraggingSession, NSDraggingSource, NSEvent,
+    NSEventModifierFlags, NSEventType, NSImage, NSPasteboardItem, NSPasteboardItemDataProvider,
+    NSView,
+};
 
-const UTF8_ENCODING: usize = 4;
+type OnDropCallback = Box<dyn Fn(DragResult, CursorPosition) + Send>;
 
-struct NSString(id);
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "DragRsDataProvider"]
+    #[ivars = DragRsDataProviderIvars]
+    struct DragRsDataProvider;
 
-impl NSString {
-    fn new(s: &str) -> Self {
-        // Safety: objc runtime calls are unsafe
-        NSString(unsafe {
-            let ns_string: id = msg_send![class!(NSString), alloc];
-            let ns_string: id = msg_send![ns_string,
-                            initWithBytes:s.as_ptr()
-                            length:s.len()
-                            encoding:UTF8_ENCODING];
+    unsafe impl NSObjectProtocol for DragRsDataProvider {}
 
-            // The thing is allocated in rust, the thing must be set to autorelease in rust to relinquish control
-            // or it can not be released correctly in OC runtime
-            let _: () = msg_send![ns_string, autorelease];
+    unsafe impl NSPasteboardItemDataProvider for DragRsDataProvider {
+        #[unsafe(method(pasteboard:item:provideDataForType:))]
+        unsafe fn provide_data(
+            &self,
+            _pasteboard: &objc2_app_kit::NSPasteboard,
+            item: &NSPasteboardItem,
+            data_type: &NSString,
+        ) {
+            let ivars = self.ivars();
+            let provider = &ivars.provider;
 
-            ns_string
-        })
-    }
-
-    fn to_str(&self) -> &str {
-        unsafe {
-            let bytes: *const c_char = msg_send![self.0, UTF8String];
-            let len = msg_send![self.0, lengthOfBytesUsingEncoding: UTF8_ENCODING];
-            let bytes = std::slice::from_raw_parts(bytes as *const u8, len);
-            std::str::from_utf8_unchecked(bytes)
+            if let Some(data) = provider(&data_type.to_string()) {
+                let ns_data = NSData::from_vec(data);
+                let _ = item.setData_forType(&ns_data, data_type);
+            }
         }
+    }
+);
+
+struct DragRsDataProviderIvars {
+    provider: crate::DataProvider,
+}
+
+impl DragRsDataProvider {
+    pub fn new(provider: crate::DataProvider, mtm: MainThreadMarker) -> Retained<Self> {
+        let this = Self::alloc(mtm).set_ivars(DragRsDataProviderIvars { provider });
+        unsafe { msg_send![super(this), init] }
+    }
+}
+
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "DragRsSource"]
+    #[ivars = DragRsSourceIvars]
+    struct DragRsSource;
+
+    unsafe impl NSObjectProtocol for DragRsSource {}
+
+    unsafe impl NSDraggingSource for DragRsSource {
+        #[unsafe(method(draggingSession:sourceOperationMaskForDraggingContext:))]
+        unsafe fn dragging_session(
+            &self,
+            session: &NSDraggingSession,
+            _context: NSDraggingContext,
+        ) -> objc2_app_kit::NSDragOperation {
+            let ivars = self.ivars();
+            session
+                .setAnimatesToStartingPositionsOnCancelOrFail(ivars.animate_on_cancel_or_failure);
+
+            ivars.drag_mode.into()
+        }
+
+        #[unsafe(method(draggingSession:endedAtPoint:operation:))]
+        unsafe fn dragging_session_end(
+            &self,
+            _session: &NSDraggingSession,
+            ended_at_point: NSPoint,
+            operation: objc2_app_kit::NSDragOperation,
+        ) {
+            let callback = &self.ivars().on_drop_callback;
+
+            let mouse_location = CursorPosition {
+                x: ended_at_point.x as i32,
+                y: CGDisplay::main().pixels_high() as i32 - ended_at_point.y as i32,
+            };
+
+            let callback_closure = callback.as_ref();
+
+            if operation == objc2_app_kit::NSDragOperation::None {
+                callback_closure(DragResult::Cancel, mouse_location);
+            } else {
+                callback_closure(DragResult::Dropped, mouse_location);
+            }
+        }
+    }
+);
+
+struct DragRsSourceIvars {
+    on_drop_callback: OnDropCallback,
+    animate_on_cancel_or_failure: bool,
+    drag_mode: DragMode,
+}
+
+impl DragRsSource {
+    pub fn new<F: Fn(DragResult, CursorPosition) + Send + 'static>(
+        on_drop_callback: F,
+        options: &Options,
+        mtm: MainThreadMarker,
+    ) -> Retained<Self> {
+        let on_drop_callback: OnDropCallback = Box::new(on_drop_callback);
+
+        let this = Self::alloc(mtm).set_ivars(DragRsSourceIvars {
+            on_drop_callback,
+            animate_on_cancel_or_failure: !options.skip_animatation_on_cancel_or_failure,
+            drag_mode: options.mode,
+        });
+        unsafe { msg_send![super(this), init] }
     }
 }
 
@@ -62,29 +140,29 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
 ) -> crate::Result<()> {
     if let Ok(RawWindowHandle::AppKit(w)) = handle.window_handle().map(|h| h.as_raw()) {
         unsafe {
-            let window: id = msg_send![w.ns_view.as_ptr() as id, window];
-            // wry replaces the ns_view so we don't really use AppKitWindowHandle::ns_view
-            let ns_view: id = msg_send![window, contentView];
+            let mtm = MainThreadMarker::new_unchecked();
+            let ns_view = &*(w.ns_view.as_ptr() as *const NSView);
+            let window = ns_view.window().expect("Failed to get window");
+            let content_view = window.contentView().expect("Failed to get contentView");
 
-            let current_position: NSPoint = msg_send![window, mouseLocationOutsideOfEventStream];
+            let current_position: NSPoint = window.mouseLocationOutsideOfEventStream();
 
-            let img: id = msg_send![class!(NSImage), alloc];
-            let img: id = match image {
+            let img = match image {
                 Image::File(path) => {
                     if !path.exists() {
                         return Err(crate::Error::ImageNotFound);
                     }
-                    NSImage::initByReferencingFile_(img, NSString::new(&path.to_string_lossy()).0)
+                    NSImage::initByReferencingFile(
+                        NSImage::alloc(),
+                        &NSString::from_str(&path.to_string_lossy()),
+                    )
                 }
                 Image::Raw(bytes) => {
-                    let data = NSData::dataWithBytes_length_(
-                        nil,
-                        bytes.as_ptr() as *const std::os::raw::c_void,
-                        bytes.len() as u64,
-                    );
-                    NSImage::initWithData_(NSImage::alloc(nil), data)
+                    let data = NSData::from_vec(bytes);
+                    NSImage::initWithData(NSImage::alloc(), &data)
                 }
             };
+            let img = img.expect("Failed to create NSImage");
             let image_size: NSSize = img.size();
             let image_rect = NSRect::new(
                 NSPoint::new(
@@ -94,207 +172,70 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
                 image_size,
             );
 
-            let dragging_items: id = msg_send![class!(NSMutableArray), array];
+            let dragging_items = NSMutableArray::new();
 
             match item {
                 DragItem::Files(files) => {
                     for path in files {
-                        let nsurl: id = msg_send![class!(NSURL), fileURLWithPath: NSString::new(&path.display().to_string()) isDirectory: false];
-                        let drag_item: id = msg_send![class!(NSDraggingItem), alloc];
-                        let item: id = msg_send![drag_item, initWithPasteboardWriter: nsurl];
-
-                        let _: () = msg_send![item, setDraggingFrame: image_rect contents: img];
-
-                        let _: () = msg_send![dragging_items, addObject: item];
+                        let nsurl = NSURL::fileURLWithPath_isDirectory(
+                            &NSString::from_str(&path.display().to_string()),
+                            false,
+                        );
+                        let item = NSDraggingItem::initWithPasteboardWriter(
+                            NSDraggingItem::alloc(),
+                            &ProtocolObject::from_retained(nsurl),
+                        );
+                        item.setDraggingFrame_contents(image_rect, Some(&*img));
+                        dragging_items.addObject(&*item);
                     }
                 }
                 DragItem::Data { provider, types } => {
-                    let cls = ClassDecl::new("DragRsDataProvider", class!(NSObject));
-                    let cls = match cls {
-                        Some(mut cls) => {
-                            cls.add_ivar::<*mut c_void>("provider_ptr");
-                            cls.add_protocol(
-                                Protocol::get("NSPasteboardItemDataProvider").unwrap(),
-                            );
-                            cls.add_method(
-                                sel!(pasteboard:item:provideDataForType:),
-                                provide_data as extern "C" fn(&Object, Sel, id, id, id),
-                            );
-                            cls.add_method(
-                                sel!(pasteboardFinishedWithDataProvider:),
-                                pasteboard_finished as extern "C" fn(&Object, Sel, id),
-                            );
+                    let data_provider = DragRsDataProvider::new(provider, mtm);
 
-                            extern "C" fn pasteboard_finished(
-                                this: &Object,
-                                _: Sel,
-                                _pasteboard: id,
-                            ) {
-                                unsafe {
-                                    let provider = this.get_ivar::<*mut c_void>("provider_ptr");
-                                    drop(Box::from_raw(
-                                        *provider as *mut Box<dyn Fn(&str) -> Option<Vec<u8>>>,
-                                    ));
-                                }
-                            }
-
-                            extern "C" fn provide_data(
-                                this: &Object,
-                                _: Sel,
-                                _pasteboard: id,
-                                item: id,
-                                data_type: id,
-                            ) {
-                                unsafe {
-                                    let provider = this.get_ivar::<*mut c_void>("provider_ptr");
-
-                                    let provider =
-                                        &*(*provider as *mut Box<dyn Fn(&str) -> Option<Vec<u8>>>);
-
-                                    if let Some(data) = provider(NSString(data_type).to_str()) {
-                                        let bytes = data.as_ptr() as *mut c_void;
-                                        let length = data.len();
-                                        let data: id = msg_send![class!(NSData), alloc];
-                                        let data: id = msg_send![data, initWithBytesNoCopy:bytes length:length freeWhenDone: if length == 0 { NO } else { YES }];
-
-                                        let _: () =
-                                            msg_send![item, setData: data forType: data_type];
-                                    }
-                                }
-                            }
-
-                            cls.register()
-                        }
-                        None => Class::get("DragRsDataProvider")
-                            .expect("Failed to get the class definition"),
-                    };
-
-                    let data_provider: id = msg_send![cls, alloc];
-                    let data_provider: id = msg_send![data_provider, init];
-
-                    let provider_ptr = Box::into_raw(Box::new(provider));
-                    (*data_provider)
-                        .set_ivar("provider_ptr", provider_ptr as *mut _ as *mut c_void);
-
-                    let item: id = msg_send![class!(NSPasteboardItem), alloc];
-                    let item: id = msg_send![item, init];
-                    let types = types
+                    let item = NSPasteboardItem::new();
+                    let types_array = types
                         .into_iter()
-                        .map(|t| NSString::new(&t).0)
-                        .collect::<Vec<id>>();
-                    let _: () = msg_send![item, setDataProvider: data_provider forTypes: NSArray::arrayWithObjects(nil, &types)];
+                        .map(|t| NSString::from_str(&t))
+                        .collect::<Vec<_>>();
+                    let types_array = NSArray::from_retained_slice(&types_array);
 
-                    let drag_item: id = msg_send![class!(NSDraggingItem), alloc];
-                    let item: id = msg_send![drag_item, initWithPasteboardWriter: item];
+                    item.setDataProvider_forTypes(
+                        &ProtocolObject::from_retained(data_provider),
+                        &types_array,
+                    );
 
-                    let _: () = msg_send![item, setDraggingFrame: image_rect contents: img];
-
-                    let _: () = msg_send![dragging_items, addObject: item];
+                    let drag_item = NSDraggingItem::initWithPasteboardWriter(
+                        NSDraggingItem::alloc(),
+                        &ProtocolObject::from_retained(item),
+                    );
+                    drag_item.setDraggingFrame_contents(image_rect, Some(&*img));
+                    dragging_items.addObject(&*drag_item);
                 }
             }
 
-            let drag_event: id = msg_send![class!(NSEvent), alloc];
-            let current_event: id = msg_send![NSApp(), currentEvent];
-            let drag_event: id = NSEvent::mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure_(
-        drag_event,
-        NSEventType::NSLeftMouseDragged,
-        current_position,
-      NSEventModifierFlags::empty(),
-        msg_send![current_event, timestamp],
-        msg_send![window, windowNumber],
-        nil,
-         0,
-          1,
-          1.0
-        );
+            let current_event = NSApp(mtm).currentEvent();
+            let timestamp = current_event.map(|e| e.timestamp()).unwrap_or(0.0);
+            let window_number = window.windowNumber();
 
-            let cls = ClassDecl::new("DragRsSource", class!(NSObject));
-            let cls = match cls {
-                Some(mut cls) => {
-                    cls.add_ivar::<*mut c_void>("on_drop_ptr");
-                    cls.add_ivar::<BOOL>("animate_on_cancel_or_failure");
-                    cls.add_ivar::<DragMode>("drag_mode");
-                    cls.add_method(
-                        sel!(draggingSession:sourceOperationMaskForDraggingContext:),
-                        dragging_session
-                            as extern "C" fn(&Object, Sel, id, NSUInteger) -> NSUInteger,
-                    );
-                    cls.add_method(
-                        sel!(draggingSession:endedAtPoint:operation:),
-                        dragging_session_end
-                            as extern "C" fn(&Object, Sel, id, NSPoint, NSUInteger),
-                    );
+            let drag_event = NSEvent::mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure(
+                NSEventType::LeftMouseDragged,
+                current_position,
+                NSEventModifierFlags::empty(),
+                timestamp,
+                window_number,
+                None,
+                0,
+                1,
+                1.0
+            ).expect("Failed to create NSEvent");
 
-                    extern "C" fn dragging_session(
-                        this: &Object,
-                        _: Sel,
-                        dragging_session: id,
-                        _context: NSUInteger,
-                    ) -> NSUInteger {
-                        unsafe {
-                            let animates = this.get_ivar::<BOOL>("animate_on_cancel_or_failure");
-                            let mode = *this.get_ivar::<DragMode>("drag_mode");
-                            let () = msg_send![dragging_session, setAnimatesToStartingPositionsOnCancelOrFail: *animates];
+            let source = DragRsSource::new(on_drop_callback, &options, mtm);
 
-                            match mode {
-                                DragMode::Copy => 1,  // NSDragOperationCopy
-                                DragMode::Move => 16, // NSDragOperationMove
-                            }
-                        }
-                    }
-
-                    extern "C" fn dragging_session_end(
-                        this: &Object,
-                        _: Sel,
-                        _dragging_session: id,
-                        ended_at_point: NSPoint,
-                        operation: NSUInteger,
-                    ) {
-                        unsafe {
-                            let callback = this.get_ivar::<*mut c_void>("on_drop_ptr");
-
-                            let mouse_location = CursorPosition {
-                                x: ended_at_point.x as i32,
-                                y: CGDisplay::main().pixels_high() as i32 - ended_at_point.y as i32,
-                            };
-
-                            let callback_closure =
-                                &*(*callback as *mut Box<dyn Fn(DragResult, CursorPosition)>);
-
-                            if operation == 0 {
-                                // NSDragOperationNone
-                                callback_closure(DragResult::Cancel, mouse_location);
-                            } else {
-                                callback_closure(DragResult::Dropped, mouse_location);
-                            }
-
-                            drop(Box::from_raw(*callback as *mut Box<dyn Fn(DragResult)>));
-                        }
-                    }
-
-                    cls.register()
-                }
-                None => Class::get("DragRsSource").expect("Failed to get the class definition"),
-            };
-
-            let source: id = msg_send![cls, alloc];
-            let source: id = msg_send![source, init];
-
-            let on_drop_callback =
-                Box::new(on_drop_callback) as Box<dyn Fn(DragResult, CursorPosition) + Send>;
-            let callback_ptr = Box::into_raw(Box::new(on_drop_callback));
-            (*source).set_ivar("on_drop_ptr", callback_ptr as *mut _ as *mut c_void);
-            (*source).set_ivar(
-                "animate_on_cancel_or_failure",
-                if options.skip_animatation_on_cancel_or_failure {
-                    YES
-                } else {
-                    NO
-                },
+            let _ = content_view.beginDraggingSessionWithItems_event_source(
+                &dragging_items,
+                &drag_event,
+                &ProtocolObject::<dyn NSDraggingSource>::from_retained(source),
             );
-            (*source).set_ivar("drag_mode", options.mode);
-
-            let _: () = msg_send![ns_view, beginDraggingSessionWithItems: dragging_items event: drag_event source: source];
 
             Ok(())
         }

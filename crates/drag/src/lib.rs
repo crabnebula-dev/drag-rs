@@ -81,10 +81,6 @@
 //!   }, Default::default());
 //!   ```
 
-#[cfg(target_os = "macos")]
-#[macro_use]
-extern crate objc;
-
 use std::path::PathBuf;
 
 mod platform_impl;
@@ -139,28 +135,27 @@ pub enum DragItem {
     },
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(u64)]
 pub enum DragMode {
-    Copy = 1,  // NSDragOperationCopy
+    #[default]
+    Copy = 1, // NSDragOperationCopy
     Move = 16, // NSDragOperationMove
 }
 
-impl Default for DragMode {
-    fn default() -> Self {
-        DragMode::Copy
-    }
-}
-
 #[cfg(target_os = "macos")]
-unsafe impl objc::Encode for DragMode {
-    fn encode() -> objc::Encoding {
-        unsafe { objc::Encoding::from_str("Q") } // unsigned long long
+impl From<DragMode> for objc2_app_kit::NSDragOperation {
+    fn from(value: DragMode) -> Self {
+        match value {
+            DragMode::Copy => objc2_app_kit::NSDragOperation::Copy,
+            DragMode::Move => objc2_app_kit::NSDragOperation::Move,
+        }
     }
 }
 
 #[derive(Default)]
 pub struct Options {
+    // TODO: Fix typo in v3
     pub skip_animatation_on_cancel_or_failure: bool,
     pub mode: DragMode,
 }

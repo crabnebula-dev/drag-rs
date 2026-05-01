@@ -76,17 +76,12 @@ pub struct CallbackResult {
     cursor_pos: drag::CursorPosition,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum DragMode {
+    #[default]
     Copy,
     Move,
-}
-
-impl Default for DragMode {
-    fn default() -> Self {
-        Self::Copy
-    }
 }
 
 impl From<DragMode> for drag::DragMode {
