@@ -1,7 +1,13 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import html2canvas from "html2canvas";
 
-type DragResult = "Dropped" | "Cancelled";
+/**
+ * `Dropped` carries the operation the drop target negotiated, as a bit mask:
+ * copy = 1, move = 2, link = 4. (This matches the Rust `DragResult` wire
+ * format; the previous `"Dropped" | "Cancelled"` type never matched the
+ * `Cancel` arm.)
+ */
+type DragResult = { Dropped: number } | "Cancel";
 
 /**
  * Logical position of the cursor.
@@ -21,7 +27,7 @@ export interface CallbackPayload {
 }
 
 export interface DragOptions {
-  mode?: "copy" | "move";
+  mode?: "copy" | "move" | "link";
 }
 
 /**
