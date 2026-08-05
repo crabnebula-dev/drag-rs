@@ -22,6 +22,13 @@ fn mask_operations() {
 }
 
 #[test]
+fn options_default_permits_exactly_a_copy() {
+    let options = drag::Options::default();
+    assert_eq!(options.allowed_operations, DropOperation::COPY);
+    assert!(!options.skip_animatation_on_cancel_or_failure);
+}
+
+#[test]
 fn from_bits_truncate_drops_undefined_bits() {
     assert_eq!(
         DropOperation::from_bits_truncate(u32::MAX),

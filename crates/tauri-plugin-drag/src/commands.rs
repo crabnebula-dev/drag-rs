@@ -82,13 +82,15 @@ pub enum DragMode {
     #[default]
     Copy,
     Move,
+    Link,
 }
 
-impl From<DragMode> for drag::DragMode {
+impl From<DragMode> for drag::DropOperation {
     fn from(value: DragMode) -> Self {
         match value {
-            DragMode::Copy => Self::Copy,
-            DragMode::Move => Self::Move,
+            DragMode::Copy => Self::COPY,
+            DragMode::Move => Self::MOVE,
+            DragMode::Link => Self::LINK,
         }
     }
 }
@@ -103,7 +105,7 @@ impl From<DragOptions> for drag::Options {
     fn from(options: DragOptions) -> Self {
         Self {
             skip_animatation_on_cancel_or_failure: false,
-            mode: options.mode.into(),
+            allowed_operations: options.mode.into(),
         }
     }
 }

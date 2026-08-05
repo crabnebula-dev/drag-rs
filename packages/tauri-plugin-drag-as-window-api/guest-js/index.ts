@@ -27,7 +27,7 @@ export interface CallbackPayload {
 }
 
 export interface DragOptions {
-  mode?: "copy" | "move";
+  mode?: "copy" | "move" | "link";
 }
 
 /**

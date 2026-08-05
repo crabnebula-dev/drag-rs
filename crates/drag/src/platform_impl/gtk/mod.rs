@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use crate::{CursorPosition, DragItem, DragMode, DragResult, DropOperation, Error, Image, Options};
+use crate::{CursorPosition, DragItem, DragResult, DropOperation, Error, Image, Options};
 use gdkx11::{
     gdk,
     glib::{ObjectExt, Propagation, SignalHandlerId},
@@ -25,12 +25,12 @@ pub fn start_drag<F: Fn(DragResult, CursorPosition) + Send + 'static>(
     on_drop_callback: F,
     options: Options,
 ) -> crate::Result<()> {
-    log::debug!("Starting drag operation with mode: {:?}", options.mode);
+    log::debug!(
+        "Starting drag operation, allowed operations: {:?}",
+        options.allowed_operations
+    );
     let handler_ids: Arc<Mutex<Vec<SignalHandlerId>>> = Arc::new(Mutex::new(vec![]));
-    let drag_action = match options.mode {
-        DragMode::Copy => gdk::DragAction::COPY,
-        DragMode::Move => gdk::DragAction::MOVE,
-    };
+    let drag_action = gdk_drag_action(options.allowed_operations);
 
     log::debug!("Setting drag source with action: {:?}", drag_action);
     window.drag_source_set(gdk::ModifierType::BUTTON1_MASK, &[], drag_action);
@@ -169,13 +169,29 @@ fn on_drop_performed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
         log::trace!("Selected action: {:?}", context.selected_action());
         log::trace!("Suggested action: {:?}", context.suggested_action());
         cleanup_signal_handlers(&handler_ids, &window);
-        // The action the target selected is already read one line above for
-        // the trace log; carry it to the callback.
         callback(
             DragResult::Dropped(drop_operation(context.selected_action())),
             get_cursor_position(&window).unwrap(),
         );
     });
+}
+
+// The inverse of `drop_operation`: `Options::allowed_operations` → the
+// `GdkDragAction` handed to the drag source, i.e. the actions this source
+// permits. `DEFAULT`, `PRIVATE` and `ASK` are not emitted: they are
+// negotiation policy, not operations a source grants.
+fn gdk_drag_action(allowed: DropOperation) -> gdk::DragAction {
+    let mut action = gdk::DragAction::empty();
+    if allowed.intersects(DropOperation::COPY) {
+        action |= gdk::DragAction::COPY;
+    }
+    if allowed.intersects(DropOperation::MOVE) {
+        action |= gdk::DragAction::MOVE;
+    }
+    if allowed.intersects(DropOperation::LINK) {
+        action |= gdk::DragAction::LINK;
+    }
+    action
 }
 
 // The drag context's selected `GdkDragAction` → the portable `DropOperation`.

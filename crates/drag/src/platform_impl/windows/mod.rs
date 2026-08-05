@@ -4,7 +4,7 @@
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-use crate::{CursorPosition, DragItem, DragMode, DragResult, DropOperation, Image, Options};
+use crate::{CursorPosition, DragItem, DragResult, DropOperation, Image, Options};
 
 use std::{
     ffi::c_void,
@@ -23,7 +23,7 @@ use windows::{
         System::Ole::{DoDragDrop, OleInitialize},
         System::Ole::{
             IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK,
-            DROPEFFECT_MOVE,
+            DROPEFFECT_MOVE, DROPEFFECT_NONE,
         },
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
         UI::{
@@ -249,10 +249,7 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
                     }
 
                     let mut out_dropeffect = DROPEFFECT::default();
-                    let effect = match options.mode {
-                        DragMode::Copy => DROPEFFECT_COPY,
-                        DragMode::Move => DROPEFFECT_MOVE,
-                    };
+                    let effect = drop_effect(options.allowed_operations);
 
                     let drop_result =
                         DoDragDrop(&data_object, &drop_source, effect, &mut out_dropeffect);
@@ -296,7 +293,7 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
                     let drop_result = DoDragDrop(
                         &data_object,
                         &drop_source,
-                        DROPEFFECT_COPY,
+                        drop_effect(options.allowed_operations),
                         &mut out_dropeffect,
                     );
                     let mut pt = POINT { x: 0, y: 0 };
@@ -319,6 +316,25 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
     }
 }
 
+// The inverse of `drop_operation`: `Options::allowed_operations` →
+// `DoDragDrop`'s `dwOKEffects`, the set of effects the source permits the
+// target to choose from. An empty mask yields `DROPEFFECT_NONE`, under which
+// no target can accept the drop — the honest reading of "this source permits
+// no operation".
+fn drop_effect(allowed: DropOperation) -> DROPEFFECT {
+    let mut effect = DROPEFFECT_NONE;
+    if allowed.intersects(DropOperation::COPY) {
+        effect |= DROPEFFECT_COPY;
+    }
+    if allowed.intersects(DropOperation::MOVE) {
+        effect |= DROPEFFECT_MOVE;
+    }
+    if allowed.intersects(DropOperation::LINK) {
+        effect |= DROPEFFECT_LINK;
+    }
+    effect
+}
+
 // `DoDragDrop`'s out `DROPEFFECT` → the portable `DropOperation`.
 //
 // Per the `DoDragDrop` documentation, `pdwEffect` "is set only if the
@@ -330,13 +346,13 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
 // source-side obligation, so it falls out of the mask.
 fn drop_operation(effect: DROPEFFECT) -> DropOperation {
     let mut op = DropOperation::NONE;
-    if (effect & DROPEFFECT_COPY) == DROPEFFECT_COPY {
+    if effect.contains(DROPEFFECT_COPY) {
         op |= DropOperation::COPY;
     }
-    if (effect & DROPEFFECT_MOVE) == DROPEFFECT_MOVE {
+    if effect.contains(DROPEFFECT_MOVE) {
         op |= DropOperation::MOVE;
     }
-    if (effect & DROPEFFECT_LINK) == DROPEFFECT_LINK {
+    if effect.contains(DROPEFFECT_LINK) {
         op |= DropOperation::LINK;
     }
     op

@@ -251,29 +251,29 @@ pub enum DragItem {
     },
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-#[repr(u64)]
-pub enum DragMode {
-    #[default]
-    Copy = 1, // NSDragOperationCopy
-    Move = 16, // NSDragOperationMove
-}
-
-#[cfg(target_os = "macos")]
-impl From<DragMode> for objc2_app_kit::NSDragOperation {
-    fn from(value: DragMode) -> Self {
-        match value {
-            DragMode::Copy => objc2_app_kit::NSDragOperation::Copy,
-            DragMode::Move => objc2_app_kit::NSDragOperation::Move,
-        }
-    }
-}
-
-#[derive(Default)]
 pub struct Options {
     // TODO: Fix typo in v3
     pub skip_animatation_on_cancel_or_failure: bool,
-    pub mode: DragMode,
+    /// The operations this source permits the drop target to negotiate.
+    ///
+    /// Handed to the platform's own permission channel — `DoDragDrop`'s
+    /// `dwOKEffects` on Windows, the `NSDraggingSource`
+    /// `draggingSession:sourceOperationMaskForDraggingContext:` return on
+    /// macOS, the source's `GdkDragAction` on GTK. The operation the target
+    /// actually performs comes back in [`DragResult::Dropped`].
+    ///
+    /// [`DropOperation::NONE`] permits nothing, so no target can accept the
+    /// drop. The default is [`DropOperation::COPY`].
+    pub allowed_operations: DropOperation,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            skip_animatation_on_cancel_or_failure: false,
+            allowed_operations: DropOperation::COPY,
+        }
+    }
 }
 
 /// An image definition.
