@@ -4,7 +4,7 @@
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-use crate::{CursorPosition, DragItem, DragMode, DragResult, Image, Options};
+use crate::{CursorPosition, DragItem, DragMode, DragResult, DropOperation, Image, Options};
 
 use std::{
     ffi::c_void,
@@ -22,7 +22,8 @@ use windows::{
         System::Memory::*,
         System::Ole::{DoDragDrop, OleInitialize},
         System::Ole::{
-            IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_MOVE,
+            IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK,
+            DROPEFFECT_MOVE,
         },
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
         UI::{
@@ -258,7 +259,10 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
                     let mut pt = POINT { x: 0, y: 0 };
                     GetCursorPos(&mut pt)?;
                     if drop_result == DRAGDROP_S_DROP {
-                        on_drop_callback(DragResult::Dropped, CursorPosition { x: pt.x, y: pt.y });
+                        on_drop_callback(
+                            DragResult::Dropped(drop_operation(out_dropeffect)),
+                            CursorPosition { x: pt.x, y: pt.y },
+                        );
                     } else {
                         // DRAGDROP_S_CANCEL
                         on_drop_callback(DragResult::Cancel, CursorPosition { x: pt.x, y: pt.y });
@@ -298,7 +302,10 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
                     let mut pt = POINT { x: 0, y: 0 };
                     GetCursorPos(&mut pt)?;
                     if drop_result == DRAGDROP_S_DROP {
-                        on_drop_callback(DragResult::Dropped, CursorPosition { x: pt.x, y: pt.y });
+                        on_drop_callback(
+                            DragResult::Dropped(drop_operation(out_dropeffect)),
+                            CursorPosition { x: pt.x, y: pt.y },
+                        );
                     } else {
                         // DRAGDROP_S_CANCEL
                         on_drop_callback(DragResult::Cancel, CursorPosition { x: pt.x, y: pt.y });
@@ -310,6 +317,29 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
     } else {
         Err(crate::Error::UnsupportedWindowHandle)
     }
+}
+
+// `DoDragDrop`'s out `DROPEFFECT` → the portable `DropOperation`.
+//
+// Per the `DoDragDrop` documentation, `pdwEffect` "is set only if the
+// operation is not canceled", so both call sites read it only in the
+// `DRAGDROP_S_DROP` arm. Bit-tested rather than compared, per the
+// `DROPEFFECT` constants documentation ("Your application should always mask
+// values from the DROPEFFECT enumeration to ensure compatibility with future
+// implementations"). `DROPEFFECT_SCROLL` is target-scroll feedback with no
+// source-side obligation, so it falls out of the mask.
+fn drop_operation(effect: DROPEFFECT) -> DropOperation {
+    let mut op = DropOperation::NONE;
+    if (effect & DROPEFFECT_COPY) == DROPEFFECT_COPY {
+        op |= DropOperation::COPY;
+    }
+    if (effect & DROPEFFECT_MOVE) == DROPEFFECT_MOVE {
+        op |= DropOperation::MOVE;
+    }
+    if (effect & DROPEFFECT_LINK) == DROPEFFECT_LINK {
+        op |= DropOperation::LINK;
+    }
+    op
 }
 
 fn get_drag_image(image: Image) -> Option<SHDRAGIMAGE> {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-use crate::{CursorPosition, DragItem, DragMode, DragResult, Error, Image, Options};
+use crate::{CursorPosition, DragItem, DragMode, DragResult, DropOperation, Error, Image, Options};
 use gdkx11::{
     gdk,
     glib::{ObjectExt, Propagation, SignalHandlerId},
@@ -169,8 +169,32 @@ fn on_drop_performed<F: Fn(DragResult, CursorPosition) + Send + 'static>(
         log::trace!("Selected action: {:?}", context.selected_action());
         log::trace!("Suggested action: {:?}", context.suggested_action());
         cleanup_signal_handlers(&handler_ids, &window);
-        callback(DragResult::Dropped, get_cursor_position(&window).unwrap());
+        // The action the target selected is already read one line above for
+        // the trace log; carry it to the callback.
+        callback(
+            DragResult::Dropped(drop_operation(context.selected_action())),
+            get_cursor_position(&window).unwrap(),
+        );
     });
+}
+
+// The drag context's selected `GdkDragAction` → the portable `DropOperation`.
+//
+// `GdkDragAction` is a bit mask, so this bit-tests. `DEFAULT`, `PRIVATE` and
+// `ASK` describe how the action was arrived at rather than what the source
+// must now do, so they map to no bit.
+fn drop_operation(action: gdk::DragAction) -> DropOperation {
+    let mut op = DropOperation::NONE;
+    if action.intersects(gdk::DragAction::COPY) {
+        op |= DropOperation::COPY;
+    }
+    if action.intersects(gdk::DragAction::MOVE) {
+        op |= DropOperation::MOVE;
+    }
+    if action.intersects(gdk::DragAction::LINK) {
+        op |= DropOperation::LINK;
+    }
+    op
 }
 
 fn get_cursor_position(window: &gtk::ApplicationWindow) -> Result<CursorPosition, Error> {

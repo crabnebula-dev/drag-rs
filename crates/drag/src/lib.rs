@@ -113,8 +113,124 @@ pub enum Error {
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum DragResult {
-    Dropped,
+    /// The data was dropped on a target, which negotiated the enclosed
+    /// [`DropOperation`] — what the source must now do with the original data
+    /// (delete it after a move, leave it alone after a copy, …).
+    ///
+    /// A target that accepted the drop and then performed nothing yields an
+    /// empty mask ([`DropOperation::is_empty`]); that is still a `Dropped`,
+    /// not a `Cancel`.
+    Dropped(DropOperation),
     Cancel,
+}
+
+/// The operation a drop target negotiated for a completed drop
+/// ([`DragResult::Dropped`]).
+///
+/// A **mask**, not a single value, because two of the three platform values
+/// are masks and none of them promises a single bit:
+///
+/// - Windows: `DoDragDrop`'s out `DROPEFFECT`. Its documentation is explicit
+///   that callers must bit-test rather than compare ("Your application should
+///   always mask values from the DROPEFFECT enumeration to ensure
+///   compatibility with future implementations").
+/// - macOS: `draggingSession:endedAtPoint:operation:`'s `NSDragOperation`, an
+///   `NS_OPTIONS` bit mask.
+/// - Linux (GTK): the drag context's `selected_action`, a `GdkDragAction` bit
+///   mask.
+///
+/// The bits below are the crate's own portable set; each platform normalizes
+/// its native value into them. Platform bits with no portable counterpart are
+/// folded onto their closest neighbour, or dropped when they carry no
+/// source-side obligation:
+///
+/// | platform bit | portable bit | why |
+/// | --- | --- | --- |
+/// | `DROPEFFECT_SCROLL` | — | target-scroll feedback, not an operation |
+/// | `NSDragOperationDelete` | [`Self::MOVE`] | drag-to-Trash: the source must delete |
+/// | `NSDragOperationGeneric` | [`Self::COPY`] | unspecified accept; the source keeps its data |
+/// | `NSDragOperationPrivate` | — | receiver-internal; no source-side obligation |
+/// | `GdkDragAction::ASK` / `PRIVATE` / `DEFAULT` | — | not a settled operation |
+///
+/// [`Self::NONE`] (no bits) means the target performed nothing — ask with
+/// [`Self::is_empty`].
+///
+/// With the `serde` feature the mask is a plain `u32` on the wire, routed
+/// through [`Self::from_bits_truncate`] on the way in, so no deserialized
+/// mask can carry a bit the constructors cannot produce.
+//
+// Deliberately no `Default`: it could only be `NONE`, and `NONE` as an
+// `Options::allowed_operations` is a drag no target can accept — not a value
+// to arrive at by omitting a field. `Options` carries its own `Default`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(from = "u32", into = "u32"))]
+pub struct DropOperation(u32);
+
+impl DropOperation {
+    /// No operation was performed.
+    pub const NONE: Self = Self(0);
+    /// The target took a copy; the source data is untouched.
+    pub const COPY: Self = Self(1 << 0);
+    /// The target took the data; the source should delete the original.
+    pub const MOVE: Self = Self(1 << 1);
+    /// The target created a link to the original data.
+    pub const LINK: Self = Self(1 << 2);
+
+    /// `true` if `self` and `other` share at least one bit.
+    pub const fn intersects(self, other: Self) -> bool {
+        self.0 & other.0 != 0
+    }
+
+    /// `true` if no bits are set, i.e. the target performed nothing
+    /// ([`Self::NONE`]).
+    ///
+    /// This is the one question equality answers correctly for a mask; every
+    /// other question should go through [`Self::intersects`].
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// The raw bits, for consumers that keep their own mapping table.
+    pub const fn bits(self) -> u32 {
+        self.0
+    }
+
+    /// Rebuild a mask from [`Self::bits`], dropping anything that is not one
+    /// of the defined bits.
+    pub const fn from_bits_truncate(bits: u32) -> Self {
+        Self(bits & (Self::COPY.0 | Self::MOVE.0 | Self::LINK.0))
+    }
+}
+
+impl std::ops::BitOr for DropOperation {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitOrAssign for DropOperation {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+/// Truncating, exactly like [`DropOperation::from_bits_truncate`]. This is
+/// also the `serde` `Deserialize` path, which keeps a wire value like
+/// `4294967295` from becoming a mask that intersects everything.
+impl From<u32> for DropOperation {
+    fn from(bits: u32) -> Self {
+        Self::from_bits_truncate(bits)
+    }
+}
+
+/// The raw bits, exactly like [`DropOperation::bits`]; the `serde`
+/// `Serialize` path — the wire form stays a bare number.
+impl From<DropOperation> for u32 {
+    fn from(operation: DropOperation) -> Self {
+        operation.bits()
+    }
 }
 
 pub type DataProvider = Box<dyn Fn(&str) -> Option<Vec<u8>>>;

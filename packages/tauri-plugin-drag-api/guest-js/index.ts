@@ -4,7 +4,16 @@ export type DragItem =
   | string[]
   | { data: string | Record<string, string>; types: string[] };
 
-export type DragResult = "Dropped" | "Cancelled";
+/**
+ * The result of a drag operation.
+ *
+ * `Dropped` carries the operation the drop target negotiated, as a bit mask:
+ * copy = 1, move = 2, link = 4. A mask of 0 means the target accepted the
+ * drop but performed nothing. (This matches the Rust `DragResult` wire
+ * format; the previous `"Dropped" | "Cancelled"` type never matched the
+ * `Cancel` arm.)
+ */
+export type DragResult = { Dropped: number } | "Cancel";
 
 /**
  * Logical position of the cursor.
