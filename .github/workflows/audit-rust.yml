@@ -8,20 +8,24 @@ on:
     branches:
       - v2
     paths:
-      - ".github/workflows/audit.yml"
+      - ".github/workflows/audit-rust.yml"
       - "**/Cargo.lock"
       - "**/Cargo.toml"
   pull_request:
     branches:
       - v2
     paths:
-      - ".github/workflows/audit.yml"
+      - ".github/workflows/audit-rust.yml"
       - "**/Cargo.lock"
       - "**/Cargo.toml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
 
 jobs:
   audit:
