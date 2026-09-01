@@ -1,0 +1,6 @@
+packages:
+  - packages/tauri-plugin-drag-api
+  - packages/tauri-plugin-drag-as-window-api
+
+minimumReleaseAge: 4320
+trustPolicy: no-downgrade
