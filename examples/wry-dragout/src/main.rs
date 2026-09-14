@@ -164,7 +164,7 @@ fn main() -> wry::Result<()> {
                     }
                 };
                 let mut paths = Vec::new();
-                let dummy_path = "./examples/wry-dragout/dummy/".to_owned() + &item;
+                let dummy_path = concat!(env!("CARGO_MANIFEST_DIR"), "/dummy/").to_owned() + &item;
                 paths.push(PathBuf::from(dummy_path).canonicalize().unwrap());
                 start_drag(
                     #[cfg(target_os = "linux")]

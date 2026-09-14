@@ -20,7 +20,7 @@ tauri.workspace = true
 
 [target."cfg(target_os = \"macos\")".dependencies]
 objc2 = "0.6.4"
-objc2-foundation = { version = "0.3", features = [
+objc2-foundation = { version = "0.3.2", features = [
   "std",
   "NSGeometry",
   "NSString",
@@ -31,7 +31,7 @@ objc2-foundation = { version = "0.3", features = [
   "NSEnumerator",
   "NSObject",
 ] }
-objc2-app-kit = { version = "0.3", features = [
+objc2-app-kit = { version = "0.3.2", features = [
   "std",
   "NSEvent",
   "NSImage",
@@ -43,18 +43,17 @@ objc2-app-kit = { version = "0.3", features = [
   "NSWindow",
   "NSApplication",
 ] }
-core-graphics = "0.24.0"
+core-graphics = "0.25.0"
 
 [target."cfg(any(target_os = \"linux\", target_os = \"dragonfly\", target_os = \"freebsd\", target_os = \"openbsd\", target_os = \"netbsd\"))".dependencies]
-gtk = { version = "0.18.1" }
-gdk = { version = "0.18.0" }
-gdkx11 = "0.18.0"
+gtk = { version = "0.18.2" }
+gdk = { version = "0.18.2" }
+gdkx11 = "0.18.2"
 
 [target."cfg(target_os = \"windows\")".dependencies]
 dunce.workspace = true
-windows-core = "0.58"
-windows = { version = "0.52", features = [
-  "implement",
+windows-core = "0.62"
+windows = { version = "0.62", features = [
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
   "Win32_System_Com",

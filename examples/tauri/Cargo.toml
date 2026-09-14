@@ -16,7 +16,11 @@ tauri-build.workspace = true
 
 [dependencies]
 tauri = { workspace = true, features = [] }
+tauri-runtime-wry = { workspace = true, optional = true }
+tauri-runtime-cef = { workspace = true, optional = true }
 tauri-plugin-drag.workspace = true
 
 [features]
-default = ["tauri/wry"]
+default = ["wry"]
+wry = ["dep:tauri-runtime-wry"]
+cef = ["dep:tauri-runtime-cef"]

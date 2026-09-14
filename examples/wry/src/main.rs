@@ -92,8 +92,16 @@ fn main() -> wry::Result<()> {
                         #[cfg(not(target_os = "linux"))]
                         &window,
                         DragItem::Files(vec![
-                            std::fs::canonicalize("./examples/icon.png").unwrap(),
-                            std::fs::canonicalize("./examples/icon.bmp").unwrap(),
+                            std::fs::canonicalize(concat!(
+                                env!("CARGO_MANIFEST_DIR"),
+                                "/../icon.png"
+                            ))
+                            .unwrap(),
+                            std::fs::canonicalize(concat!(
+                                env!("CARGO_MANIFEST_DIR"),
+                                "/../icon.bmp"
+                            ))
+                            .unwrap(),
                         ]),
                         Image::Raw(include_bytes!("../../icon.png").to_vec()),
                         // Image::File("./examples/icon.png".into()),

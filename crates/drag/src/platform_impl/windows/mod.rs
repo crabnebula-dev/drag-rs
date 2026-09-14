@@ -68,7 +68,7 @@ impl DropSource {
 }
 
 #[allow(non_snake_case)]
-impl IDropSource_Impl for DropSource {
+impl IDropSource_Impl for DropSource_Impl {
     fn QueryContinueDrag(&self, fescapepressed: BOOL, grfkeystate: MODIFIERKEYS_FLAGS) -> HRESULT {
         if fescapepressed.as_bool() {
             DRAGDROP_S_CANCEL
@@ -91,7 +91,7 @@ impl DummyDropSource {
 }
 
 #[allow(non_snake_case)]
-impl IDropSource_Impl for DummyDropSource {
+impl IDropSource_Impl for DummyDropSource_Impl {
     fn QueryContinueDrag(&self, fescapepressed: BOOL, grfkeystate: MODIFIERKEYS_FLAGS) -> HRESULT {
         if fescapepressed.as_bool() || (grfkeystate & MK_LBUTTON) == MODIFIERKEYS_FLAGS(0) {
             DRAGDROP_S_CANCEL
@@ -141,10 +141,10 @@ impl DataObject {
 }
 
 #[allow(non_snake_case)]
-impl IDataObject_Impl for DataObject {
+impl IDataObject_Impl for DataObject_Impl {
     fn GetData(&self, pformatetc: *const FORMATETC) -> Result<STGMEDIUM> {
         unsafe {
-            if Self::is_supported_format(pformatetc) {
+            if DataObject::is_supported_format(pformatetc) {
                 Ok(STGMEDIUM {
                     tymed: TYMED_HGLOBAL.0 as u32,
                     u: STGMEDIUM_0 {
@@ -159,12 +159,12 @@ impl IDataObject_Impl for DataObject {
     }
 
     fn GetDataHere(&self, _pformatetc: *const FORMATETC, _pmedium: *mut STGMEDIUM) -> Result<()> {
-        Err(Error::new(DV_E_FORMATETC, HSTRING::new()))
+        Err(Error::from_hresult(DV_E_FORMATETC))
     }
 
     fn QueryGetData(&self, pformatetc: *const FORMATETC) -> HRESULT {
         unsafe {
-            if Self::is_supported_format(pformatetc) {
+            if DataObject::is_supported_format(pformatetc) {
                 S_OK
             } else {
                 self.inner_shell_obj.QueryGetData(pformatetc)
@@ -187,28 +187,31 @@ impl IDataObject_Impl for DataObject {
         pmedium: *const STGMEDIUM,
         frelease: BOOL,
     ) -> Result<()> {
-        unsafe { self.inner_shell_obj.SetData(pformatetc, pmedium, frelease) }
+        unsafe {
+            self.inner_shell_obj
+                .SetData(pformatetc, pmedium, frelease.as_bool())
+        }
     }
 
     fn EnumFormatEtc(&self, _dwdirection: u32) -> Result<IEnumFORMATETC> {
-        Err(Error::new(E_NOTIMPL, HSTRING::new()))
+        Err(Error::from_hresult(E_NOTIMPL))
     }
 
     fn DAdvise(
         &self,
         _pformatetc: *const FORMATETC,
         _advf: u32,
-        _padvsink: Option<&IAdviseSink>,
+        _padvsink: Ref<'_, IAdviseSink>,
     ) -> Result<u32> {
-        Err(Error::new(OLE_E_ADVISENOTSUPPORTED, HSTRING::new()))
+        Err(Error::from_hresult(OLE_E_ADVISENOTSUPPORTED))
     }
 
     fn DUnadvise(&self, _dwconnection: u32) -> Result<()> {
-        Err(Error::new(OLE_E_ADVISENOTSUPPORTED, HSTRING::new()))
+        Err(Error::from_hresult(OLE_E_ADVISENOTSUPPORTED))
     }
 
     fn EnumDAdvise(&self) -> Result<IEnumSTATDATA> {
-        Err(Error::new(OLE_E_ADVISENOTSUPPORTED, HSTRING::new()))
+        Err(Error::from_hresult(OLE_E_ADVISENOTSUPPORTED))
     }
 }
 
@@ -322,7 +325,7 @@ fn get_drag_image(image: Image) -> Option<SHDRAGIMAGE> {
         let mut bitmap: BITMAP = BITMAP::default();
         let (width, height) = if 0
             == GetObjectW(
-                hbitmap,
+                hbitmap.into(),
                 std::mem::size_of::<BITMAP>() as i32,
                 Some(&mut bitmap as *mut BITMAP as *mut c_void),
             ) {
@@ -361,7 +364,7 @@ fn get_hglobal(size: usize, buffer: Vec<u16>) -> Result<HGLOBAL> {
     Ok(handle)
 }
 
-pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> Result<T> {
+pub fn create_instance<T: Interface>(clsid: &GUID) -> Result<T> {
     unsafe { CoCreateInstance(clsid, None, CLSCTX_ALL) }
 }
 

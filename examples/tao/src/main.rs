@@ -49,7 +49,11 @@ fn main() {
                     },
                     #[cfg(not(target_os = "linux"))]
                     &window,
-                    DragItem::Files(vec![std::fs::canonicalize("./examples/icon.png").unwrap()]),
+                    DragItem::Files(vec![std::fs::canonicalize(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../icon.png"
+                    ))
+                    .unwrap()]),
                     Image::Raw(include_bytes!("../../icon.png").to_vec()),
                     // Image::File("./examples/icon.png".into()),
                     |result: DragResult, cursor_pos: CursorPosition| {
