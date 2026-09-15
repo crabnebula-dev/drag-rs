@@ -10,9 +10,9 @@
         }
       },
       "publish": [
-        "yarn install",
-        "yarn build",
-        "yarn publish --access public"
+        "pnpm install",
+        "pnpm build",
+        "pnpm publish --access public --publish-branch v2"
       ]
     },
     "rust": {
