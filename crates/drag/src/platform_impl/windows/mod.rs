@@ -25,6 +25,7 @@ use windows::{
             IDropSource, IDropSource_Impl, CF_HDROP, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_MOVE,
         },
         System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS},
+        System::Threading::GetCurrentThreadId,
         UI::{
             Shell::{
                 BHID_DataObject, CLSID_DragDropHelper, Common, IDragSourceHelper, IShellItemArray,
@@ -36,6 +37,7 @@ use windows::{
 };
 
 mod image;
+mod watchdog;
 
 static mut OLE_RESULT: Result<()> = Ok(());
 static OLE_UNINITIALIZE: Once = Once::new();
@@ -253,8 +255,24 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
                         DragMode::Move => DROPEFFECT_MOVE,
                     };
 
+                    // `DoDragDrop` blocks this thread and holds the mouse capture
+                    // until the drag ends. If it never returns, so does this
+                    // thread. `watchdog` cancels that case from the outside; see
+                    // its module docs for why a timeout inside
+                    // `QueryContinueDrag` cannot do the job.
+                    let alive = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                    if let Some(timeout) = crate::stuck_drag_timeout() {
+                        let alive = alive.clone();
+                        let thread_id = GetCurrentThreadId();
+                        std::thread::spawn(move || watchdog::watch(thread_id, alive, timeout));
+                    }
+
                     let drop_result =
                         DoDragDrop(&data_object, &drop_source, effect, &mut out_dropeffect);
+
+                    // Stops the watchdog immediately on every normal drag, so it
+                    // never samples a thread that is no longer dragging.
+                    alive.store(false, std::sync::atomic::Ordering::SeqCst);
                     let mut pt = POINT { x: 0, y: 0 };
                     GetCursorPos(&mut pt)?;
                     if drop_result == DRAGDROP_S_DROP {
