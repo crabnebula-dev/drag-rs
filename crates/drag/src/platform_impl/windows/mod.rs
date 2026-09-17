@@ -235,7 +235,7 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
                     paths.push(dunce::canonicalize(f)?);
                 }
 
-                let data_object: IDataObject = get_file_data_object(&paths).unwrap();
+                let data_object: IDataObject = get_file_data_object(&paths)?;
                 let drop_source: IDropSource = DropSource::new().into();
 
                 unsafe {
@@ -276,7 +276,7 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
 
                 let paths = vec![dunce::canonicalize("./")?];
 
-                let data_object: IDataObject = get_file_data_object(&paths).unwrap();
+                let data_object: IDataObject = get_file_data_object(&paths)?;
                 let drop_source: IDropSource = DummyDropSource::new().into();
 
                 unsafe {
@@ -365,26 +365,84 @@ pub fn create_instance<T: Interface + ComInterface>(clsid: &GUID) -> Result<T> {
     unsafe { CoCreateInstance(clsid, None, CLSCTX_ALL) }
 }
 
-fn get_file_data_object(paths: &[PathBuf]) -> Option<IDataObject> {
+fn get_file_data_object(paths: &[PathBuf]) -> crate::Result<IDataObject> {
     unsafe {
-        let shell_item_array = get_shell_item_array(paths).unwrap();
-        shell_item_array.BindToHandler(None, &BHID_DataObject).ok()
+        let shell_item_array = get_shell_item_array(paths)?;
+        Ok(shell_item_array.BindToHandler(None, &BHID_DataObject)?)
     }
 }
 
-fn get_shell_item_array(paths: &[PathBuf]) -> Option<IShellItemArray> {
+fn get_shell_item_array(paths: &[PathBuf]) -> crate::Result<IShellItemArray> {
     unsafe {
-        let list: Vec<*const Common::ITEMIDLIST> = paths
-            .iter()
-            .map(|path| get_file_item_id(path).cast_const())
-            .collect();
-        SHCreateShellItemArrayFromIDLists(&list).ok()
+        let mut list: Vec<*const Common::ITEMIDLIST> = Vec::with_capacity(paths.len());
+        for path in paths {
+            match get_file_item_id(path) {
+                Ok(pidl) => list.push(pidl.cast_const()),
+                Err(e) => {
+                    for pidl in &list {
+                        CoTaskMemFree(Some(*pidl as *const _ as *mut _));
+                    }
+                    return Err(e);
+                }
+            }
+        }
+        let result = SHCreateShellItemArrayFromIDLists(&list);
+        for pidl in &list {
+            CoTaskMemFree(Some(*pidl as *const _ as *mut _));
+        }
+        Ok(result?)
     }
 }
 
-fn get_file_item_id(path: &Path) -> *mut Common::ITEMIDLIST {
+fn get_file_item_id(path: &Path) -> crate::Result<*mut Common::ITEMIDLIST> {
     unsafe {
         let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
-        windows::Win32::UI::Shell::ILCreateFromPathW(PCWSTR::from_raw(wide_path.as_ptr()))
+        let pidl =
+            windows::Win32::UI::Shell::ILCreateFromPathW(PCWSTR::from_raw(wide_path.as_ptr()));
+        if pidl.is_null() {
+            Err(crate::Error::InvalidShellPath(path.to_path_buf()))
+        } else {
+            Ok(pidl)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_file_item_id_returns_error_for_nonexistent_path() {
+        let path = PathBuf::from(r"C:\__nonexistent_drag_rs_test_path__\file.txt");
+        let result = get_file_item_id(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_file_item_id_returns_error_for_unc_nonexistent() {
+        let path = PathBuf::from(r"\\nonexistent_server_drag_rs\share\file.png");
+        let result = get_file_item_id(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_shell_item_array_returns_error_for_invalid_paths() {
+        let paths = vec![PathBuf::from(r"C:\__nonexistent_drag_rs_test__\a.txt")];
+        let result = get_shell_item_array(&paths);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_file_data_object_returns_error_not_panic_for_bad_paths() {
+        let paths = vec![PathBuf::from(r"\\nonexistent_server\share\file.png")];
+        let result = get_file_data_object(&paths);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_file_item_id_succeeds_for_existing_file() {
+        let path = PathBuf::from(r"C:\Windows\System32\notepad.exe");
+        let result = get_file_item_id(&path);
+        assert!(result.is_ok());
     }
 }
