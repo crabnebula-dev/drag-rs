@@ -101,7 +101,13 @@ pub enum Error {
     FailedToStartDrag,
     #[error("drag image not found")]
     ImageNotFound,
-    #[cfg(target_os = "linux")]
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
     #[error("empty drag target list")]
     EmptyTargetList,
     #[error("failed to drop items")]
