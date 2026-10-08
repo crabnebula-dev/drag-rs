@@ -84,6 +84,8 @@
 use std::path::PathBuf;
 
 mod platform_impl;
+#[cfg(any(windows, test))]
+mod win_path;
 pub use platform_impl::start_drag;
 
 pub type Result<T> = std::result::Result<T, Error>;
