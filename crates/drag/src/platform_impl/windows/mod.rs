@@ -130,8 +130,7 @@ impl DataObject {
     fn clone_drop_hglobal(&self) -> Result<HGLOBAL> {
         let mut buffer = Vec::new();
         for path in &self.files {
-            let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
-            buffer.extend(wide_path);
+            buffer.extend(shell_path(path));
         }
         buffer.push(0);
         let size = std::mem::size_of::<DROPFILES>() + buffer.len() * 2;
@@ -232,7 +231,17 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
 
                 let mut paths = Vec::new();
                 for f in files {
-                    paths.push(dunce::canonicalize(f)?);
+                    // An absolute path is already what the shell wants.
+                    // Canonicalizing it is what breaks it: `dunce` keeps the
+                    // verbatim `\\?\` form for network paths and for anything
+                    // over MAX_PATH, which the shell cannot parse, and it
+                    // fails outright on FUSE-backed volumes with
+                    // ERROR_UNRECOGNIZED_VOLUME, taking the whole drag with it.
+                    if f.is_absolute() {
+                        paths.push(f);
+                    } else {
+                        paths.push(dunce::canonicalize(&f).unwrap_or(f));
+                    }
                 }
 
                 let data_object: IDataObject = get_file_data_object(&paths).unwrap();
@@ -382,9 +391,45 @@ fn get_shell_item_array(paths: &[PathBuf]) -> Option<IShellItemArray> {
     }
 }
 
+/// A path as the shell's parsers take it: UTF-16, NUL-terminated, and without
+/// a verbatim `\\?\` prefix, which `ILCreateFromPathW` and drop targets
+/// reading `CF_HDROP` cannot parse. A caller that canonicalized its paths
+/// hands over that form for network shares and for anything over `MAX_PATH`.
+fn shell_path(path: &Path) -> Vec<u16> {
+    let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+    crate::win_path::strip_verbatim_prefix(&wide)
+        .into_iter()
+        .chain(once(0))
+        .collect()
+}
+
 fn get_file_item_id(path: &Path) -> *mut Common::ITEMIDLIST {
     unsafe {
-        let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
+        let wide_path = shell_path(path);
         windows::Win32::UI::Shell::ILCreateFromPathW(PCWSTR::from_raw(wide_path.as_ptr()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_local_path_resolves_to_a_shell_item() {
+        let exe = std::env::current_exe().expect("current exe");
+        assert!(!get_file_item_id(&exe).is_null());
+    }
+
+    #[test]
+    fn a_verbatim_path_resolves_to_a_shell_item() {
+        // What a caller gets from `std::fs::canonicalize`.
+        let exe = std::env::current_exe().expect("current exe");
+        let verbatim = std::fs::canonicalize(&exe).expect("canonicalize");
+        assert!(
+            verbatim.as_os_str().to_string_lossy().starts_with(r"\\?\"),
+            "expected a verbatim path, got {}",
+            verbatim.display()
+        );
+        assert!(!get_file_item_id(&verbatim).is_null());
     }
 }
