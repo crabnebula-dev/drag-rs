@@ -93,6 +93,9 @@ pub enum Error {
     #[cfg(windows)]
     #[error("{0}")]
     WindowsError(#[from] windows::core::Error),
+    #[cfg(windows)]
+    #[error("failed to resolve path for drag operation: {0}")]
+    InvalidShellPath(std::path::PathBuf),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error("unsupported window handle")]
