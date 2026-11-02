@@ -12,14 +12,56 @@ use objc2::{
 use objc2_foundation::{NSArray, NSData, NSMutableArray, NSPoint, NSRect, NSSize, NSString, NSURL};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-use crate::{CursorPosition, DragItem, DragMode, DragResult, Image, Options};
+use crate::{CursorPosition, DragItem, DragResult, DropOperation, Image, Options};
 use objc2_app_kit::{
-    NSApp, NSDraggingContext, NSDraggingItem, NSDraggingSession, NSDraggingSource, NSEvent,
-    NSEventModifierFlags, NSEventType, NSImage, NSPasteboardItem, NSPasteboardItemDataProvider,
-    NSView,
+    NSApp, NSDragOperation, NSDraggingContext, NSDraggingItem, NSDraggingSession, NSDraggingSource,
+    NSEvent, NSEventModifierFlags, NSEventType, NSImage, NSPasteboardItem,
+    NSPasteboardItemDataProvider, NSView,
 };
 
 type OnDropCallback = Box<dyn Fn(DragResult, CursorPosition) + Send>;
+
+// The inverse of `drop_operation`: `Options::allowed_operations` → the mask
+// `draggingSession:sourceOperationMaskForDraggingContext:` returns, i.e. the
+// operations this source permits the destination to choose from. Only the
+// three portable bits are emitted: `Generic`, `Private` and `Delete` are
+// things a destination reports, not permissions a source grants.
+fn drag_operation_mask(allowed: DropOperation) -> NSDragOperation {
+    let mut mask = NSDragOperation::empty();
+    if allowed.intersects(DropOperation::COPY) {
+        mask |= NSDragOperation::Copy;
+    }
+    if allowed.intersects(DropOperation::MOVE) {
+        mask |= NSDragOperation::Move;
+    }
+    if allowed.intersects(DropOperation::LINK) {
+        mask |= NSDragOperation::Link;
+    }
+    mask
+}
+
+// The end-of-session `NSDragOperation` → the portable `DropOperation`.
+//
+// `draggingSession:endedAtPoint:operation:` delivers an `NS_OPTIONS` mask, so
+// this bit-tests. `Delete` (a drag to the Trash) is a `MOVE`: the source must
+// remove its data. `Generic` is an unspecified accept that leaves the source
+// data alone, i.e. a `COPY`. `Private` is receiver-internal and imposes
+// nothing on the source, so it maps to no bit — a `Private`-only end is
+// reported as `Dropped` with an empty mask, because the drop did happen (only
+// `NSDragOperationNone` is a cancel).
+fn drop_operation(operation: NSDragOperation) -> DropOperation {
+    let mut op = DropOperation::NONE;
+    if operation.intersects(NSDragOperation::Copy | NSDragOperation::Generic) {
+        op |= DropOperation::COPY;
+    }
+    if operation.intersects(NSDragOperation::Move | NSDragOperation::Delete) {
+        op |= DropOperation::MOVE;
+    }
+    if operation.intersects(NSDragOperation::Link) {
+        op |= DropOperation::LINK;
+    }
+    op
+}
 
 define_class!(
     #[unsafe(super(NSObject))]
@@ -80,7 +122,7 @@ define_class!(
             session
                 .setAnimatesToStartingPositionsOnCancelOrFail(ivars.animate_on_cancel_or_failure);
 
-            ivars.drag_mode.into()
+            drag_operation_mask(ivars.allowed_operations)
         }
 
         #[unsafe(method(draggingSession:endedAtPoint:operation:))]
@@ -102,7 +144,10 @@ define_class!(
             if operation == objc2_app_kit::NSDragOperation::None {
                 callback_closure(DragResult::Cancel, mouse_location);
             } else {
-                callback_closure(DragResult::Dropped, mouse_location);
+                callback_closure(
+                    DragResult::Dropped(drop_operation(operation)),
+                    mouse_location,
+                );
             }
         }
     }
@@ -111,7 +156,7 @@ define_class!(
 struct DragRsSourceIvars {
     on_drop_callback: OnDropCallback,
     animate_on_cancel_or_failure: bool,
-    drag_mode: DragMode,
+    allowed_operations: DropOperation,
 }
 
 impl DragRsSource {
@@ -125,7 +170,7 @@ impl DragRsSource {
         let this = Self::alloc(mtm).set_ivars(DragRsSourceIvars {
             on_drop_callback,
             animate_on_cancel_or_failure: !options.skip_animatation_on_cancel_or_failure,
-            drag_mode: options.mode,
+            allowed_operations: options.allowed_operations,
         });
         unsafe { msg_send![super(this), init] }
     }
