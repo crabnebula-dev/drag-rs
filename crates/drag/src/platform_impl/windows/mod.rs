@@ -230,10 +230,7 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DragResult, CursorPosition) + Send +
                     }
                 }
 
-                let mut paths = Vec::new();
-                for f in files {
-                    paths.push(dunce::canonicalize(f)?);
-                }
+                let paths = drag_paths(files)?;
 
                 let data_object: IDataObject = get_file_data_object(&paths).unwrap();
                 let drop_source: IDropSource = DropSource::new().into();
@@ -382,9 +379,83 @@ fn get_shell_item_array(paths: &[PathBuf]) -> Option<IShellItemArray> {
     }
 }
 
+/// The paths to hand the shell for `files`.
+///
+/// A file that is not there fails here, with the I/O error, before anything
+/// reaches the shell, which would answer with a null item for it.
+///
+/// An absolute path is already what the shell wants. Canonicalizing it is
+/// what breaks it: `dunce` keeps the verbatim `\\?\` form for network paths,
+/// which the shell cannot parse, and it fails outright on FUSE-backed volumes
+/// with ERROR_UNRECOGNIZED_VOLUME.
+fn drag_paths(files: Vec<PathBuf>) -> crate::Result<Vec<PathBuf>> {
+    let mut paths = Vec::with_capacity(files.len());
+    for f in files {
+        std::fs::metadata(&f)?;
+        if f.is_absolute() {
+            paths.push(f);
+        } else {
+            paths.push(dunce::canonicalize(&f).unwrap_or(f));
+        }
+    }
+    Ok(paths)
+}
+
+/// A path as `ILCreateFromPathW` takes it: UTF-16, NUL-terminated, and
+/// without a verbatim `\\?\` prefix, which it cannot parse. A caller that
+/// canonicalized its paths with `std::fs::canonicalize` hands over that form
+/// for every path.
+fn shell_path(path: &Path) -> Vec<u16> {
+    let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+    crate::win_path::strip_verbatim_prefix(&wide)
+        .into_iter()
+        .chain(once(0))
+        .collect()
+}
+
 fn get_file_item_id(path: &Path) -> *mut Common::ITEMIDLIST {
     unsafe {
-        let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
+        let wide_path = shell_path(path);
         windows::Win32::UI::Shell::ILCreateFromPathW(PCWSTR::from_raw(wide_path.as_ptr()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_file_is_an_error_rather_than_a_panic() {
+        let missing = PathBuf::from(r"C:\__nonexistent_drag_rs_test__\a.txt");
+        let result = drag_paths(vec![missing]);
+        assert!(
+            matches!(&result, Err(crate::Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound),
+            "expected NotFound, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn an_absolute_path_is_passed_as_given() {
+        let exe = std::env::current_exe().expect("current exe");
+        assert_eq!(drag_paths(vec![exe.clone()]).unwrap(), vec![exe]);
+    }
+
+    #[test]
+    fn a_local_path_resolves_to_a_shell_item() {
+        let exe = std::env::current_exe().expect("current exe");
+        assert!(!get_file_item_id(&exe).is_null());
+    }
+
+    #[test]
+    fn a_verbatim_path_resolves_to_a_shell_item() {
+        // What a caller gets from `std::fs::canonicalize`.
+        let exe = std::env::current_exe().expect("current exe");
+        let verbatim = std::fs::canonicalize(&exe).expect("canonicalize");
+        assert!(
+            verbatim.as_os_str().to_string_lossy().starts_with(r"\\?\"),
+            "expected a verbatim path, got {}",
+            verbatim.display()
+        );
+        assert!(!get_file_item_id(&verbatim).is_null());
     }
 }
