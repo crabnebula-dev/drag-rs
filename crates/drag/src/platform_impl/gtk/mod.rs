@@ -62,14 +62,14 @@ pub fn start_drag<F: Fn(DragResult, CursorPosition) + Send + 'static>(
 
     if let Some(target_list) = &window.drag_source_get_target_list() {
         log::debug!("Got target list, initiating drag");
-        if let Some(drag_context) = window.drag_begin_with_coordinates(
-            target_list,
-            drag_action,
-            gdk::ffi::GDK_BUTTON1_MASK as i32,
-            None,
-            -1,
-            -1,
-        ) {
+        // GTK expects the button number (it ends the drag on that button's release), not a mask.
+        let button = gtk::current_event()
+            .and_then(|e| e.button())
+            .map(|b| b as i32)
+            .unwrap_or(1);
+        if let Some(drag_context) =
+            window.drag_begin_with_coordinates(target_list, drag_action, button, None, -1, -1)
+        {
             log::debug!("Drag context created successfully");
             let callback = Rc::new(on_drop_callback);
             on_drop_failed(callback.clone(), window, &handler_ids, &options);
