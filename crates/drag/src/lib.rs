@@ -160,6 +160,54 @@ pub struct Options {
     pub mode: DragMode,
 }
 
+/// Milliseconds, where 0 means disabled.
+///
+/// Process-wide rather than a field on [`Options`] for two reasons. It keeps the
+/// addition non-breaking, since `Options` has public fields and no
+/// `#[non_exhaustive]`, so a new field would break every struct-literal
+/// construction downstream. And it matches what this actually is: a safety net
+/// against a platform bug, not a preference anyone would want to vary from one
+/// drag to the next.
+static STUCK_DRAG_TIMEOUT_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Cancel a drag that has stopped responding.
+///
+/// `DoDragDrop` runs its own modal message loop on the calling thread and holds
+/// the mouse capture until the drag ends. When it fails to exit, the caller's
+/// thread never returns; on a UI thread that takes the whole application with
+/// it, while the process still reports as responding.
+///
+/// Once set, a background thread cancels the drag if it has held the mouse
+/// capture for this long with no mouse button pressed. Unset by default, so
+/// behaviour is unchanged unless you opt in.
+///
+/// Pick a value in seconds rather than milliseconds. Releasing the button does
+/// not end a drag: `DoDragDrop` then calls `IDropTarget::Drop` on the receiving
+/// application and keeps the capture until that call returns, so a slow drop
+/// target legitimately holds it with no button down. Erring long costs a few
+/// seconds; erring short cancels a real drop.
+///
+/// - **Windows**: supported.
+/// - **macOS / Linux**: stored but unused.
+///
+/// ```rust,no_run
+/// drag::set_stuck_drag_timeout(Some(std::time::Duration::from_secs(5)));
+/// ```
+pub fn set_stuck_drag_timeout(timeout: Option<std::time::Duration>) {
+    let ms = timeout
+        .map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX).max(1))
+        .unwrap_or(0);
+    STUCK_DRAG_TIMEOUT_MS.store(ms, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The timeout set by [`set_stuck_drag_timeout`], or `None` if disabled.
+pub fn stuck_drag_timeout() -> Option<std::time::Duration> {
+    match STUCK_DRAG_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => None,
+        ms => Some(std::time::Duration::from_millis(ms)),
+    }
+}
+
 /// An image definition.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
