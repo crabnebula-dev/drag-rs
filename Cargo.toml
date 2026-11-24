@@ -15,7 +15,7 @@ thiserror = "2.0.18"
 base64 = "0.22.1"
 tao = "0.34.5"
 winit = "0.30.5"
-wry = "0.54.2"
+wry = "0.55.1"
 dunce = "1.0.5"
 tauri-build = "2.5.5"
 tauri-plugin = { version = "2.5.3", features = ["build"] }
